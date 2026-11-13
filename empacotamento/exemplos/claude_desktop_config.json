@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ufc-mcp": {
+      "command": "uv",
+      "args": ["run", "ufc-mcp", "servir", "--perfil", "completo"]
+    }
+  }
+}

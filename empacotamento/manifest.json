@@ -1,0 +1,15 @@
+{
+  "manifest_version": "0.1",
+  "name": "ufc-mcp",
+  "version": "0.9.0",
+  "description": "Assistente acadêmico MCP para estudantes da UFC, somente leitura",
+  "license": "MIT",
+  "server": {
+    "type": "python",
+    "entry_point": "ufc_mcp.cli:main",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "ufc-mcp", "servir"]
+    }
+  }
+}
