@@ -1,0 +1,22 @@
+name: CI — Qualidade e Tipagem
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  qualidade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Instalar dependências
+        run: uv sync --extra dev
+      - name: Verificar lint (Ruff)
+        run: uv run ruff check src
+      - name: Verificar tipagem estrita (Mypy)
+        run: uv run mypy src

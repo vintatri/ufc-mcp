@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+dist/
+build/
+*.egg-info/
+gravacoes_brutas/
+*.sqlite3
+avaliacao/resultados/brutos/
+.agentes/
+
+# Segredos e estado local: nunca versionar
+.env
+.env.*
+*.bak
+*.tgz
+cofre.bin
+sessao_efemera.json
+login_suspenso
+config.toml

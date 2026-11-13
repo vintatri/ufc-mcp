@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ufc-mcp"
+version = "0.9.0"
+description = "Copiloto acadêmico MCP com governança de dados, tutoria fundamentada e leitura segura para a UFC"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Equipe UFC-MCP" }]
+dependencies = [
+    "mcp>=1.2.0,<3.0.0",
+    "httpx>=0.27.0,<1.0.0",
+    "beautifulsoup4>=4.12.0,<5.0.0",
+    "lxml>=5.0.0,<7.0.0",
+    "pydantic>=2.7.0,<3.0.0",
+    "keyring>=25.0.0,<26.0.0",
+    "cryptography>=43.0.0,<51.0.0",
+    "argon2-cffi>=23.1.0,<26.0.0",
+    "platformdirs>=4.2.0,<5.0.0",
+    "pypdf>=4.2.0,<6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "respx>=0.21.0",
+    "freezegun>=1.5.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "types-beautifulsoup4>=4.12.0",
+]
+
+[project.scripts]
+ufc-mcp = "ufc_mcp.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ufc_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E501 não é habilitado: o projeto contém fixtures e templates HTML longos por
+# natureza, e o limite de 100 colunas continua aplicado ao código formatado.
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["ufc_mcp"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,19 @@
+name: Canários de Estabilidade Estrutural (fontes públicas)
+
+# Execução apenas manual: evita tráfego automático e recorrente contra os sites da UFC.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canario:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Instalar dependências
+        run: uv sync
+      - name: Executar diagnóstico público
+        run: uv run ufc-mcp diagnostico --fontes ru calendario noticias sigaa_publico --json
