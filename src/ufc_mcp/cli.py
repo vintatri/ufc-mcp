@@ -17,6 +17,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from ufc_mcp.ferramentas import ContextoApp
 from ufc_mcp.gravador.gravar import gerar_corpus_sintetico
 from ufc_mcp.nucleo.config import Config, caminho_config_toml, salvar_configuracao
@@ -218,7 +220,19 @@ def _aplicar_config_cliente(cliente: str, perfil: str) -> Path:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = construir_parser_cli()
     args = parser.parse_args(argv)
-    cfg = Config.carregar()
+    try:
+        cfg = Config.carregar()
+    except (ErroUfc, ValueError, ValidationError) as exc:
+        dica = (
+            "Corrija o valor em UFC_MCP_RESTAURANTE ou em config.toml, "
+            "ou rode: ufc-mcp configurar --restaurante <nome>"
+        )
+        curso_env = os.environ.get("UFC_MCP_ID_CURSO_PUBLICO", "")
+        if not isinstance(exc, ErroUfc) and curso_env and not curso_env.strip().lstrip("-").isdigit():
+            dica = "UFC_MCP_ID_CURSO_PUBLICO deve ser um número inteiro"
+        detalhe = exc.mensagem if isinstance(exc, ErroUfc) else str(exc)
+        sys.stderr.write(f"Configuração inválida: {detalhe}\n{dica}\n")
+        return 1
     configurar_registro(cfg.nivel_log)
 
     try:
