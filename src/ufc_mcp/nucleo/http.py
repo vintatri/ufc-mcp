@@ -343,6 +343,37 @@ class ClienteEducado:
             cabecalhos={k.lower(): v for k, v in resp.headers.items()},
         )
 
+    async def get_binario(
+        self,
+        url: str,
+        *,
+        cookies: httpx.Cookies,
+        max_bytes: int = 26_214_400,
+    ) -> RespostaBinaria:
+        """GET autenticado para arquivos anexados (ex.: /sigaa/verFoto?idArquivo=...)."""
+        resp, url_final, _host_final = await self._executar_com_redirecionamento(
+            "GET", url, cookies=cookies
+        )
+        conteudo = resp.content
+        if len(conteudo) > max_bytes:
+            raise ErroUfc(
+                CodigoErro.PARAMETRO_INVALIDO,
+                "Arquivo excede o limite de segurança de 25 MB.",
+            )
+        cd = resp.headers.get("content-disposition", "")
+        nome_sugerido: str | None = None
+        m = REGEX_CONTENT_DISPOSITION_FILENAME.search(cd)
+        if m:
+            nome_sugerido = m.group(1).strip()
+        return RespostaBinaria(
+            status=resp.status_code,
+            url_final=url_final,
+            conteudo=conteudo,
+            content_type=resp.headers.get("content-type", "application/octet-stream"),
+            nome_arquivo_sugerido=nome_sugerido,
+            cabecalhos={k.lower(): v for k, v in resp.headers.items()},
+        )
+
     async def post_form_binario(
         self,
         url: str,
