@@ -517,9 +517,31 @@ class SessaoSigaa:
             url_post, dados, cookies=self.cookies
         )
         if resp_bin.content_type.lower().startswith("text/html"):
-            raise ErroUfc(
-                CodigoErro.NAO_ENCONTRADO,
-                "O SIGAA não retornou um arquivo binário válido para este material.",
+            # Material de atividade/tarefa: a página abre e o arquivo do professor
+            # fica num link direto (/sigaa/verFoto?idArquivo=...), não num postback.
+            href_arquivo = _achar_link_arquivo_professor(resp_bin.conteudo)
+            if href_arquivo is None:
+                raise ErroUfc(
+                    CodigoErro.NAO_ENCONTRADO,
+                    "O SIGAA não retornou um arquivo binário válido para este material.",
+                )
+            resp_bin = await self.http.get_binario(
+                urljoin(URL_BASE_SIGAA, href_arquivo), cookies=self.cookies
             )
+            if resp_bin.content_type.lower().startswith("text/html"):
+                raise ErroUfc(
+                    CodigoErro.NAO_ENCONTRADO,
+                    "O SIGAA não retornou um arquivo binário válido para este material.",
+                )
         nome_final = resp_bin.nome_arquivo_sugerido or titulo_mat
         return resp_bin, nome_final
+
+
+def _achar_link_arquivo_professor(html: bytes) -> str | None:
+    """Retorna o href do arquivo enviado pelo professor numa página de tarefa, se houver."""
+    soup = BeautifulSoup(html, "lxml")
+    for a in soup.find_all("a", href=True):
+        href = str(a["href"])
+        if urlparse(href).path == "/sigaa/verFoto" and "idArquivo=" in href:
+            return href
+    return None
