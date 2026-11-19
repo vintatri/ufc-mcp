@@ -98,6 +98,10 @@ O perfil `completo` expõe as 36 ferramentas. O perfil `essencial` expõe 16, as
 | ★ `configurar` | Grava curso e restaurante no primeiro uso. |
 | `diagnostico` | Verifica se o layout do SIGAA mudou e se algum parser quebrou. |
 
+### Prompts prontos
+
+Além das ferramentas, o servidor oferece prompts que o cliente de IA pode listar: `meu-dia`, `qual-minha-aula`, `radar-academico`, `planejar-semana`, `conselheiro-matricula`, `estudar-disciplina`, `conferir-pendencias` e `simulado`. O `simulado` aplica questões de recuperação ativa com base no material do professor: o assistente apresenta as questões sem resposta, espera a sua tentativa e só então corrige, citando `[Material: <título>, Página <N>]`.
+
 ## Instalação
 
 Requisitos: [`uv`](https://docs.astral.sh/uv/), que instala o Python 3.11+ se necessário, e um cliente MCP.
@@ -198,7 +202,7 @@ Os dados pessoais são gravados no `config.toml` da pasta de configuração do u
 - **Rede restrita.** Só HTTPS, e só para domínios da UFC: `si3.ufc.br`, `ufc2012.ufc.br`, `ufcinforma.ufc.br`, `prograd.ufc.br`, `prae.ufc.br` e `dados.ufc.br`. Redirecionamentos são seguidos um a um e validados, com verificação de certificado.
 - **Somente leitura.** Só são permitidas 22 ações de menu e 12 postbacks de consulta. Trancamento, supressão, envio de tarefa, alteração cadastral e emissão de documentos são bloqueados pelo código.
 - **Texto de terceiros é dado.** Avisos, fóruns, notícias e PDFs passam por sanitização (HTML executável e caracteres Unicode invisíveis são removidos) e vêm marcados como `texto_externo`. O modelo deve tratá-los como conteúdo, nunca como instrução.
-- **Acesso moderado.** Há pausa mínima entre requisições e limites por minuto, hora e dia. O `User-Agent` se identifica como cliente pessoal, sem fingir ser navegador.
+- **Acesso moderado.** Há pausa mínima de 2 s entre requisições e limites de 30 por minuto, 300 por hora e 2.000 por dia. Ao chegar no teto do minuto o cliente espera a janela liberar (até 60 s) em vez de falhar, e os tetos de hora e de dia recusam a requisição. Ferramentas que leem várias telas, como `alertas`, informam `resultado_completo` e avisam quando alguma leitura falhou. O `User-Agent` se identifica como cliente pessoal, sem fingir ser navegador.
 
 **Dados enviados ao modelo.** A senha fica no seu computador. As respostas das ferramentas, porém, passam pelo seu cliente MCP até o provedor do modelo (Anthropic, OpenAI e outros), a menos que você use um modelo totalmente local. Por isso, nome, matrícula, CPF, telefone e e-mail vêm omitidos por padrão, a lista de colegas da Turma Virtual é bloqueada e qualquer tela fora da lista de leitura é recusada. Detalhes em [`PRIVACIDADE.md`](PRIVACIDADE.md) e [`SECURITY.md`](SECURITY.md).
 

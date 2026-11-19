@@ -69,6 +69,23 @@ def _serializado(fn: Callable[..., Awaitable[_R]]) -> Callable[..., Awaitable[_R
     return envoltorio
 
 
+_REGEX_PADRAO_DOWNLOAD = re.compile(r"(?i)download|arquivo|anexo|idmat|material")
+
+
+def _parece_download_material(
+    nome_form: str, pares: dict[str, str], titulo: str, onclick: str = ""
+) -> bool:
+    """
+    Allowlist do padrão de download da Turma Virtual (formulário `formAvaMat`, parâmetro
+    `idMat`, ou nomes de campo/ação de download/arquivo/anexo). A extensão no título NÃO é
+    exigida (muitos materiais não a têm). A recusa de ações de escrita vem do título/verbo
+    (`risco.exigir_titulo_material`), aplicada antes.
+    """
+    if nome_form == "formAvaMat" or "idMat" in pares:
+        return True
+    return bool(_REGEX_PADRAO_DOWNLOAD.search(onclick))
+
+
 class SessaoSigaa:
     """Controla o ciclo de vida da sessão autenticada e do ViewState JSF 1.x."""
 
@@ -231,25 +248,7 @@ class SessaoSigaa:
                 "Nenhuma credencial ou sessão ativa encontrada no cofre.",
             )
 
-        tela_login = await self.http.get(URL_TELA_LOGIN, cookies=self.cookies)
-        validar_campos_visiveis_login(tela_login.texto)
-        form_login = extrair_formulario(tela_login.texto, "loginForm")
-        dados_post = dict(form_login.campos)
-        dados_post["user.login"] = cred.usuario
-        dados_post["user.senha"] = cred.senha
-        dados_post.setdefault("entrar", "Entrar")  # botão submit do loginForm (o navegador o envia)
-        # width/height são preenchidos por JS no navegador (screen.width/height)
-        if "width" in dados_post:
-            dados_post["width"] = "1920"
-        if "height" in dados_post:
-            dados_post["height"] = "1080"
-
-        # Usa action do formulário (pode conter jsessionid no path)
-        from urllib.parse import urljoin
-        action_url = urljoin(URL_BASE_SIGAA, form_login.action)
-
-        resp_login = await self.http.post_form(action_url, dados_post, cookies=self.cookies)
-        del dados_post
+        resp_login = await self._enviar_formulario_login(cred.usuario, cred.senha)
         del cred
 
         self._rejeitar_pos_login(identificar_pagina(resp_login.texto))
@@ -268,29 +267,35 @@ class SessaoSigaa:
         self.ultima_view_ativa = ("/sigaa/portais/discente/discente.jsf", None)
         return html
 
-    async def autenticar_com_credencial_efemera(self, usuario: str, senha: str) -> SessaoGuardada:
-        """Realiza login único para `ufc-mcp login --so-sessao` e devolve apenas os cookies."""
-        self.limpar_suspensao()
-        self.cookies.clear()
+    async def _enviar_formulario_login(self, usuario: str, senha: str) -> RespostaHttp:
+        """Carrega a tela de login, preenche o `loginForm` e o envia (lógica única de login)."""
         tela_login = await self.http.get(URL_TELA_LOGIN, cookies=self.cookies)
         validar_campos_visiveis_login(tela_login.texto)
         form_login = extrair_formulario(tela_login.texto, "loginForm")
         dados_post = dict(form_login.campos)
         dados_post["user.login"] = usuario
         dados_post["user.senha"] = senha
-        dados_post.setdefault("entrar", "Entrar")  # botão submit do loginForm (o navegador o envia)
-        # width/height são preenchidos por JS no navegador (screen.width/height)
+        dados_post.setdefault("entrar", "Entrar")  # botão submit do loginForm
+        # `width` e `height` são campos do próprio formulário, preenchidos por JavaScript
+        # (screen.width/height) no navegador do usuário. Enviamos valores fixos apenas para
+        # satisfazer o formulário; o valor não identifica o cliente como navegador, e o
+        # cliente continua se anunciando com o User-Agent honesto do ufc-mcp.
         if "width" in dados_post:
             dados_post["width"] = "1920"
         if "height" in dados_post:
             dados_post["height"] = "1080"
-
-        # Usa action do formulário (pode conter jsessionid no path)
-        from urllib.parse import urljoin
+        # Usa a action do formulário (pode conter jsessionid no path)
         action_url = urljoin(URL_BASE_SIGAA, form_login.action)
+        try:
+            return await self.http.post_form(action_url, dados_post, cookies=self.cookies)
+        finally:
+            del dados_post
 
-        resp_login = await self.http.post_form(action_url, dados_post, cookies=self.cookies)
-        del dados_post
+    async def autenticar_com_credencial_efemera(self, usuario: str, senha: str) -> SessaoGuardada:
+        """Realiza login único para `ufc-mcp login --so-sessao` e devolve apenas os cookies."""
+        self.limpar_suspensao()
+        self.cookies.clear()
+        resp_login = await self._enviar_formulario_login(usuario, senha)
         self._rejeitar_pos_login(identificar_pagina(resp_login.texto))
         html = await self._ir_ao_portal(resp_login)
         if identificar_pagina(html) != TipoPagina.PORTAL_DISCENTE:
@@ -507,6 +512,16 @@ class SessaoSigaa:
 
         _, titulo_mat, onclick_mat = escolhido
         nome_form, pares = extrair_pares_jsfcljs(onclick_mat)
+        # (b) o título real do link não pode indicar ação de escrita (Votar, Enviar, Remover...).
+        risco.exigir_titulo_material(titulo_mat)
+        # (a) só é material o link com padrão de download da Turma Virtual
+        # (formulário `formAvaMat` / parâmetro `idMat` / campos de download, arquivo ou anexo).
+        if not _parece_download_material(nome_form, pares, titulo_mat, onclick_mat):
+            raise ErroUfc(
+                CodigoErro.ACAO_BLOQUEADA,
+                f"O link '{titulo_mat[:80]}' não tem padrão de download de arquivo e não será acionado.",
+                detalhes={"id_material": id_material},
+            )
         form_jsf = extrair_formulario(html_principal, nome_form)
         risco.exigir_postback(form_jsf.view, "Baixar Material")
         dados = dict(form_jsf.campos)

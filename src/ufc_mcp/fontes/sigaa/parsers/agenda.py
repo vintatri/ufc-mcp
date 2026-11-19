@@ -20,13 +20,20 @@ def parse_agenda_turmas(html: str) -> dict[str, object]:
         )
 
     linhas_agenda: list[dict[str, str]] = []
+    viu_rotulos = False
     for tr in conteudo.select("table tr"):
         tds = [" ".join(td.get_text(" ", strip=True).split()) for td in tr.find_all("td")]
         tds = [c for c in tds if c]
         if len(tds) >= 2:
+            if all(c.endswith(":") or c.endswith(": ") for c in tds):
+                # Linha só de rótulos ("Horário Descrição:"): é o cabeçalho do quadro, não um evento.
+                viu_rotulos = True
+                continue
             linhas_agenda.append({"colunas": " | ".join(tds)})
 
-    if not linhas_agenda:
+    # Agenda sem eventos é um resultado válido quando o quadro de rótulos está presente; sem nenhuma
+    # tabela reconhecível, continua sendo mudança de layout.
+    if not linhas_agenda and not viu_rotulos:
         raise ErroUfc(CodigoErro.LAYOUT_MUDOU, "Tabela da Agenda de Turmas vazia ou ausente.")
 
     return {"titulo": titulo or "Agenda de Turmas", "itens": linhas_agenda}

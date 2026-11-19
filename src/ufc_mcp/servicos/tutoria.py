@@ -44,12 +44,15 @@ async def construir_plano_estudo_orientado(
     # 1. Diagnóstico regimental de notas (Art. 114 da UFC)
     notas_t, _, _ = await sigaa.obter_turma_notas(id_turma, atualizar=atualizar)
     valores_notas = [av.nota for av in notas_t.avaliacoes if av.nota is not None]
-    total_unidades = max(3, len(notas_t.avaliacoes)) if notas_t.avaliacoes else 3
+    # Total real = avaliações listadas; sem lista, o diagnóstico presume 3 e avisa.
+    total_unidades = len(notas_t.avaliacoes) if notas_t.avaliacoes else None
+    avisos: list[str] = []
     diag_notas: DiagnosticoNotasUfc = diagnosticar_notas_ufc(
         valores_notas,
         total_unidades_previstas=total_unidades,
         media_parcial_informada=notas_t.media_parcial,
     )
+    avisos.extend(diag_notas.avisos)
 
     # 2. Horizonte de avaliação e tarefas
     proxima_avaliacao: dict[str, object] | None = None
@@ -62,8 +65,8 @@ async def construir_plano_estudo_orientado(
                 "hora": av0.hora,
                 "descricao": av0.descricao.model_dump(),
             }
-    except ErroUfc:
-        pass
+    except ErroUfc as exc:
+        avisos.append(f"Leitura das avaliações agendadas falhou ({exc.codigo}); próxima prova indisponível.")
 
     tarefas_pendentes: list[dict[str, object]] = []
     try:
@@ -77,23 +80,28 @@ async def construir_plano_estudo_orientado(
                         "enviada": t.enviada,
                     }
                 )
-    except ErroUfc:
-        pass
+    except ErroUfc as exc:
+        avisos.append(f"Leitura das tarefas falhou ({exc.codigo}); tarefas pendentes indisponíveis.")
 
     # 3. Alinhamento Construtivo: Plano de Curso x Visão Geral (Materiais)
     plano_t, _, _ = await sigaa.obter_turma_plano_curso(id_turma, atualizar=atualizar)
     visao_t, _, _ = await sigaa.obter_turma_visao_geral(id_turma, atualizar=atualizar)
 
     todos_materiais: list[dict[str, object]] = []
+    textos_busca: list[str] = []  # texto normalizado só para casar tópicos; não vai para a saída
     for top in visao_t.topicos:
         for mat in top.materiais:
+            # títulos de terceiros permanecem como TextoExterno (nunca str solta)
             todos_materiais.append(
                 {
                     "id_material": mat.id_material,
-                    "titulo_material": mat.titulo.texto_externo,
+                    "titulo_material": mat.titulo.model_dump(),
                     "data_topico": top.data,
-                    "titulo_topico": top.titulo.texto_externo,
+                    "titulo_topico": top.titulo.model_dump(),
                 }
+            )
+            textos_busca.append(
+                sem_acentos_minusculo(f"{mat.titulo.texto_externo} {top.titulo.texto_externo}")
             )
 
     termo_norm = sem_acentos_minusculo(termo_topico) if termo_topico else None
@@ -114,11 +122,8 @@ async def construir_plano_estudo_orientado(
             if len(p) >= 4 and p not in {"aula", "introducao", "parte", "capitulo"}
         }
         associados: list[dict[str, object]] = []
-        for m_info in todos_materiais:
+        for m_info, txt_mat_norm in zip(todos_materiais, textos_busca, strict=True):
             mesma_data = item_cron.data is not None and m_info["data_topico"] == item_cron.data
-            txt_mat_norm = sem_acentos_minusculo(
-                f"{m_info['titulo_material']} {m_info['titulo_topico']}"
-            )
             tem_palavra = any(pal in txt_mat_norm for pal in palavras_cron)
             if mesma_data or tem_palavra:
                 associados.append(m_info)
@@ -188,4 +193,5 @@ async def construir_plano_estudo_orientado(
         "materiais_disponiveis_para_download": todos_materiais,
         "alinhamento_cronograma_materiais": [t.model_dump() for t in topicos_alinhados],
         "roteiro_pedagogico": roteiro.model_dump(),
+        "avisos": avisos,
     }

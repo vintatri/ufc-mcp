@@ -24,7 +24,7 @@ class DetalheErro(BaseModel):
 
 
 class Envelope(BaseModel):
-    """Contrato único de retorno para todas as 35 ferramentas do ufc-mcp."""
+    """Contrato único de retorno para todas as ferramentas do ufc-mcp."""
 
     ok: bool
     fonte: str

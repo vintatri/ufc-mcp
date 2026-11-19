@@ -10,6 +10,7 @@ Serviços `matricula` e `grade`:
 from __future__ import annotations
 
 from collections import deque
+from datetime import date
 from typing import Literal, get_args
 
 from ufc_mcp.fontes.sigaa.modelos import ComponenteProgresso, TurmaOfertada
@@ -25,6 +26,18 @@ from ufc_mcp.servicos.horario import (
 
 PerfilOtimizacaoGrade = Literal["desbloqueio", "compacta", "equilibrada"]
 EstrategiaSimulacao = Literal["diversificada", "desbloqueio", "compacta", "equilibrada"]
+
+
+
+def proximo_periodo_letivo(hoje: date) -> tuple[int, int]:
+    """
+    Próximo período letivo (ano, período) para planejar matrícula, a partir da data:
+    de janeiro a julho -> período 2 do mesmo ano; de agosto a dezembro -> período 1 do ano seguinte.
+    (A matrícula do .2 ocorre entre junho e julho; a do .1 do ano seguinte, em dezembro/janeiro.)
+    """
+    if hoje.month <= 7:
+        return hoje.year, 2
+    return hoje.year + 1, 1
 
 
 class ValidacaoGrafoCurricular(BaseModel):

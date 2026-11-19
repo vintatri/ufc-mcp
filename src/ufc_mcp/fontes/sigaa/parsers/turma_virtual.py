@@ -32,8 +32,28 @@ from ufc_mcp.nucleo.erros import CodigoErro, ErroUfc
 from ufc_mcp.nucleo.higiene import TextoExterno, externo
 from ufc_mcp.nucleo.paginas import achar_tag
 
+_REGEX_NOME_COM_CODIGO = re.compile(r"^[A-Z]{2,5}\d{3,4}\s+-\s+\S")
+_REGEX_TURMA_LONGA = re.compile(r"^(?P<base>.+?)\s+-\s+Turma:\s*(?P<turma>\w+)\s*\((?P<per>\d{4}\.\d)\)(?:\s+-\s+\w+)?$")
+
+
+def _padronizar_nome_turma(txt: str) -> str:
+    """Uniformiza "COD - NOME - Turma: 01 (2026.2) - ABERTA" (tela de Notas) para o formato das demais
+    telas, "COD - NOME (2026.2 - T01)", de modo que a mesma turma tenha sempre a mesma identificação."""
+    m = _REGEX_TURMA_LONGA.match(txt)
+    if not m:
+        return txt
+    turma = m.group("turma")
+    turma = f"T{int(turma):02d}" if turma.isdigit() else f"T{turma}"
+    return f"{m.group('base')} ({m.group('per')} - {turma})"
+
 
 def _extrair_nome_turma(soup: BeautifulSoup, id_turma: str) -> str:
+    # Algumas telas (ex.: Notas) trazem dois títulos: um só com o nome (para leitor de tela) e outro
+    # com o código da disciplina. Prefere o que traz o código, que identifica a turma sem ambiguidade.
+    for titulo_el in soup.select("h2, h3"):
+        txt = " ".join(titulo_el.get_text(" ", strip=True).split())
+        if _REGEX_NOME_COM_CODIGO.match(txt):
+            return _padronizar_nome_turma(txt)
     for sel in ("#nomeTurma", ".nomeTurma", "#cabecalho-turma h3", "h2", "h3"):
         el = soup.select_one(sel)
         if el:
@@ -69,14 +89,26 @@ def parse_turma_visao_geral(html: str, *, id_turma: str) -> VisaoGeralTurma:
     contador_mat = 0
 
     for bloco in blocos[:60]:
-        cab = bloco.find(["h3", "h4", "span", "strong"], class_=re.compile(r"titulo|cabecalho", re.I)) or bloco.find(["h3", "h4"])
+        # Layout real: o título do tópico é `<div class="titulo">`.
+        cab = bloco.find(
+            ["h3", "h4", "span", "strong", "div"], class_=re.compile(r"titulo|cabecalho", re.I)
+        ) or bloco.find(["h3", "h4"])
         titulo_bruto = (
             " ".join(cab.get_text(" ", strip=True).split())
             if cab
             else " ".join(bloco.get_text(" ", strip=True).split())[:120]
         )
         data_iso = _normalizar_data_texto(titulo_bruto)
-        desc_el = bloco.find("div", class_=re.compile(r"descricao|conteudo", re.I)) or bloco.find("p")
+        # O resumo é o bloco `descricao` do tópico; `div.conteudo` (layout real) só contém os itens
+        # (materiais, tarefas, links), e `descricao-item` é a legenda de um item, não do tópico.
+        desc_el = bloco.find(["div", "p"], class_=re.compile(r"^descricao$", re.I)) or next(
+            (
+                p
+                for p in bloco.find_all("p")
+                if p.find_parent("div", class_=re.compile(r"conteudo|item", re.I)) is None
+            ),
+            None,
+        )
         resumo_ext: TextoExterno | None = None
         if desc_el:
             txt_d = " ".join(desc_el.get_text(" ", strip=True).split())
@@ -157,13 +189,16 @@ def parse_turma_notas(html: str, *, id_turma: str) -> NotasTurma:
             break
         val_str = tds[idx]
         col_up = nome_col.upper()
+        if col_up.startswith("NOTA FINAL"):
+            continue  # resultado geral, não uma unidade avaliativa (não entra na contagem de unidades)
         if any(col_up.startswith(pref) for pref in ("UNID", "AVAL", "NOTA", "N1", "N2", "N3", "AP")):
             avaliacoes.append(AvaliacaoNota(nome=nome_col, nota=_para_float_nota(val_str)))
         elif any(k in col_up for k in ("MÉDIA", "MEDIA", "RESULTADO")):
             media_parcial = _para_float_nota(val_str)
         elif "FALTA" in col_up:
             m_f = re.search(r"(\d+)", val_str)
-            faltas = int(m_f.group(1)) if m_f else 0
+            # célula vazia ou "--" significa dado ausente, nunca "0 faltas"
+            faltas = int(m_f.group(1)) if m_f else None
         elif "SITUA" in col_up or "STATUS" in col_up:
             situacao = val_str or None
 
@@ -267,12 +302,31 @@ def parse_turma_tarefas(html: str, *, id_turma: str) -> TarefasTurma:
         raise ErroUfc(CodigoErro.LAYOUT_MUDOU, "Tabela de tarefas não encontrada.")
 
     tarefas: list[ItemTarefaTurma] = []
-    for tr in tabela.find_all("tr"):
+    # Layout real (`table.listing`): a descrição fica na linha seguinte, numa única célula, e o
+    # estado de envio é dado pelos ícones ("Visualizar Tarefa Enviada" / "Enviar tarefa").
+    layout_real = "listing" in (tabela.get("class") or [])
+    linhas_tr = tabela.find_all("tr")
+    for idx_tr, tr in enumerate(linhas_tr):
         tds = [" ".join(td.get_text(" ", strip=True).split()) for td in tr.find_all("td")]
         if len(tds) < 2:
             continue
         titulo_bruto = tds[0]
         desc_bruta = tds[1] if len(tds) >= 3 else tds[0]
+        enviada_icone: bool | None = None
+        if layout_real:
+            desc_bruta = ""
+            if idx_tr + 1 < len(linhas_tr):
+                tds_prox = linhas_tr[idx_tr + 1].find_all("td")
+                if len(tds_prox) == 1:
+                    desc_bruta = " ".join(tds_prox[0].get_text(" ", strip=True).split())
+            marcas = [
+                str(el.get("title") or el.get("alt") or "").lower()
+                for el in tr.find_all(["a", "img"])
+            ]
+            if any("tarefa enviada" in m for m in marcas):
+                enviada_icone = True
+            elif any("enviar tarefa" in m for m in marcas):
+                enviada_icone = False
         ini_iso: str | None = None
         fim_iso: str | None = None
         enviada: bool | None = None
@@ -292,6 +346,9 @@ def parse_turma_tarefas(html: str, *, id_turma: str) -> TarefasTurma:
             enviada = False
         elif re.search(r"\b(enviada|submetida|entregue)\b", texto_tr, re.I):
             enviada = True
+
+        if enviada_icone is not None:
+            enviada = enviada_icone
 
         tarefas.append(
             ItemTarefaTurma(
@@ -324,6 +381,30 @@ def parse_turma_noticias(html: str, *, id_turma: str) -> NoticiasTurma:
 
     if re.search(r"Nenhuma not[ií]cia cadastrada", conteudo.get_text(" ", strip=True), re.I):
         return NoticiasTurma(id_turma=id_turma, turma=nome_turma, noticias=[])
+
+    # Layout real: `table.listing` com colunas "Título | Data | Notificação" (só a lista; o corpo
+    # de cada notícia exige abrir o item, então o título também ocupa o campo `corpo`).
+    for tab in conteudo.select("table.listing"):
+        cab_txt = [" ".join(th.get_text(" ", strip=True).split()).lower() for th in tab.find_all("th")]
+        if "título" not in cab_txt or "data" not in cab_txt:
+            continue
+        i_tit, i_dat = cab_txt.index("título"), cab_txt.index("data")
+        noticias_tab: list[ItemNoticiaTurma] = []
+        for tr in tab.find_all("tr"):
+            tds = [" ".join(td.get_text(" ", strip=True).split()) for td in tr.find_all("td")]
+            if len(tds) <= max(i_tit, i_dat) or not tds[i_tit]:
+                continue
+            noticias_tab.append(
+                ItemNoticiaTurma(
+                    titulo=externo(tds[i_tit], origem=f"turma:{id_turma}:noticia_titulo", max_chars=300),
+                    corpo=externo(tds[i_tit], origem=f"turma:{id_turma}:noticia_corpo", max_chars=1500),
+                    publicada_em=_normalizar_data_texto(tds[i_dat]),
+                )
+            )
+            if len(noticias_tab) >= 20:
+                break
+        if noticias_tab:
+            return NoticiasTurma(id_turma=id_turma, turma=nome_turma, noticias=noticias_tab)
 
     blocos = conteudo.select("div.noticia, table.listagem tr.noticia, div.item-noticia, table.listagem tbody tr")
     if not blocos:

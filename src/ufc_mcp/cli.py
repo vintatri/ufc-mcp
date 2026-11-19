@@ -9,25 +9,28 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import contextlib
 import getpass
 import json
 import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import TextIO
 
 from pydantic import ValidationError
 
-from ufc_mcp.ferramentas import ContextoApp
+from ufc_mcp.ferramentas import FERRAMENTAS_PERFIL_ESSENCIAL, ContextoApp
 from ufc_mcp.gravador.gravar import gerar_corpus_sintetico
 from ufc_mcp.nucleo.config import Config, caminho_config_toml, salvar_configuracao
 from ufc_mcp.nucleo.credenciais import (
     Cofre,
     CofreArquivo,
+    CofreComposto,
     CofreSessao,
     CofreSistema,
     Credencial,
+    RelatorioLogout,
+    apagar_arquivos_cofre,
 )
 from ufc_mcp.nucleo.erros import CodigoErro, ErroUfc
 from ufc_mcp.nucleo.registro import configurar_registro
@@ -99,7 +102,10 @@ def construir_parser_cli() -> argparse.ArgumentParser:
         "--perfil",
         choices=["completo", "essencial"],
         default=None,
-        help="Perfil do catálogo de ferramentas (35 em completo, 15 em essencial).",
+        help=(
+            "Perfil do catálogo de ferramentas "
+            f"(completo = todas; essencial = {len(FERRAMENTAS_PERFIL_ESSENCIAL)} ferramentas)."
+        ),
     )
 
     # 5. diagnostico
@@ -217,6 +223,29 @@ def _aplicar_config_cliente(cliente: str, perfil: str) -> Path:
     return destino
 
 
+def executar_logout(cofre: Cofre, pasta_config: Path, saida: TextIO) -> int:
+    """Apaga cofres e arquivos locais (cofre.bin, sessao_efemera.json) e relata o resultado."""
+    rel = RelatorioLogout()
+    try:
+        if isinstance(cofre, CofreComposto):
+            rel = cofre.limpar_relatorio()
+        else:
+            cofre.limpar()
+            rel.apagados.append(cofre.descricao())
+    except ErroUfc as exc:
+        rel.falhas.append(exc.mensagem)
+    arquivos = apagar_arquivos_cofre(pasta_config)
+    rel.apagados += [f"arquivo {n}" for n in arquivos.apagados]
+    rel.falhas += arquivos.falhas
+    saida.write("Apagado: " + (", ".join(rel.apagados) or "nada a apagar") + "\n")
+    if rel.ignorados:
+        saida.write("Não verificado (indisponível): " + "; ".join(rel.ignorados) + "\n")
+    if rel.falhas:
+        saida.write("FALHOU: " + "; ".join(rel.falhas) + "\n")
+        return 1
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = construir_parser_cli()
     args = parser.parse_args(argv)
@@ -266,13 +295,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.subcomando == "logout":
             ctx = ContextoApp(config=cfg)
-            with contextlib.suppress(ErroUfc):
-                ctx.cofre.limpar()
+            codigo = executar_logout(ctx.cofre, cfg.pasta_config, sys.stderr)
             ctx.cache_pessoal.limpar()
             ctx.cache_publico.limpar()
             ctx.sessao.limpar_suspensao()
-            sys.stderr.write("Credenciais, sessão e caches apagados com sucesso.\n")
-            return 0
+            return codigo
 
         if args.subcomando == "login":
             usuario = args.usuario or input("Usuário SIGAA: ").strip()

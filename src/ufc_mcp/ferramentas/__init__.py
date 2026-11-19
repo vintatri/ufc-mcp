@@ -1,4 +1,4 @@
-"""Registro unificado das 35 ferramentas MCP (e subconjunto de 15 no perfil `essencial`)."""
+"""Registro unificado das ferramentas MCP e do subconjunto do perfil `essencial` (contagens vêm do registro)."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class DefinicaoFerramenta:
 
 
 class ContextoApp:
-    """Container de injeção de dependências compartilhado pelas 35 ferramentas."""
+    """Container de injeção de dependências compartilhado por todas as ferramentas."""
 
     def __init__(
         self,

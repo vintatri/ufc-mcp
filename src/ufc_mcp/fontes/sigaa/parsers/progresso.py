@@ -16,6 +16,8 @@ from ufc_mcp.nucleo.paginas import (
     titulo_da_tela,
 )
 
+REGEX_ID_OPTATIVO = re.compile(r"^desc_g_optativo_co_(\d+)$")
+
 
 def parse_progresso_curso(html: str) -> ResultadoProgressoCurso:
     titulo = titulo_da_tela(html)
@@ -34,8 +36,8 @@ def parse_progresso_curso(html: str) -> ResultadoProgressoCurso:
         svg = achar_tag(soup, id=id_svg)
         if not svg:
             continue
-        for el in svg.find_all(id=re.compile(r"_cc_(\d+)")):
-            m_cc = re.search(r"_cc_(\d+)", str(el.get("id")))
+        for el in svg.find_all(id=re.compile(r"_c[co]_(\d+)")):
+            m_cc = re.search(r"_c[co]_(\d+)", str(el.get("id")))
             if not m_cc:
                 continue
             id_cc = m_cc.group(1)
@@ -57,10 +59,16 @@ def parse_progresso_curso(html: str) -> ResultadoProgressoCurso:
     for div in soup.find_all("div", class_="descricaoComponente"):
         id_div = str(div.get("id") or "")
         m_id = REGEX_ID_PROGRESSO.match(id_div)
-        if not m_id:
+        m_opt = REGEX_ID_OPTATIVO.match(id_div)
+        if m_id:
+            periodo = int(m_id.group(1))
+            id_comp = m_id.group(2)
+        elif m_opt:
+            # Optativa cursada: não pertence a um período da sequência sugerida (0 = sem período).
+            periodo = 0
+            id_comp = m_opt.group(1)
+        else:
             continue
-        periodo = int(m_id.group(1))
-        id_comp = m_id.group(2)
 
         codigo = f"DISC{id_comp}"
         nome = codigo
@@ -76,7 +84,7 @@ def parse_progresso_curso(html: str) -> ResultadoProgressoCurso:
                 m_c = REGEX_CODIGO_COMPONENTE.search(valor)
                 if m_c:
                     codigo = m_c.group(1)
-                    nome = re.sub(rf"^.*?{re.escape(codigo)}\s*-\s*", "", valor).strip() or codigo
+                    nome = re.sub(rf"^.*?\b{re.escape(codigo)}\s*-\s*", "", valor).strip() or codigo
             elif "carga hor" in lower:
                 m_ch = re.search(r"(\d+)", txt)
                 if m_ch:
@@ -116,5 +124,14 @@ def parse_progresso_curso(html: str) -> ResultadoProgressoCurso:
         )
 
     curso_el = soup.select_one(".nomeCurso, #conteudo h3")
-    nome_curso = " ".join(curso_el.get_text(" ", strip=True).split()) if curso_el else "GRADUAÇÃO UFC"
+    nome_curso = " ".join(curso_el.get_text(" ", strip=True).split()) if curso_el else ""
+    if not nome_curso:
+        # Layout real: linha "Curso:" da tabela "Dados do Discente".
+        for th in soup.find_all("th"):
+            if " ".join(th.get_text(" ", strip=True).split()).lower() == "curso:":
+                td = th.find_next_sibling("td")
+                if td is not None:
+                    nome_curso = " ".join(td.get_text(" ", strip=True).split())
+                    break
+    nome_curso = nome_curso or "GRADUAÇÃO UFC"
     return ResultadoProgressoCurso(curso=nome_curso, componentes=componentes)
