@@ -6,6 +6,8 @@ com aviso `.erros/.warning/.info`, omissão de Dados do Discente e exclusão de 
 
 from __future__ import annotations
 
+import re
+
 from bs4 import BeautifulSoup, Tag
 
 from ufc_mcp.fontes.sigaa.modelos import (
@@ -65,6 +67,23 @@ def _limpar_celula_sem_acao(td: Tag) -> str:
         if el_acao.get("onclick") or el_acao.find("img"):
             el_acao.decompose()
     return " ".join(copia.get_text(" ", strip=True).split())
+
+
+_REGEX_MENSAGEM_VAZIA = re.compile(
+    r"^(nenhum|nenhuma|n[ãa]o (h[áa]|foram|existem|possui)|(esse|este) discente n[ãa]o possui)\b",
+    re.IGNORECASE,
+)
+
+
+def _mensagem_vazia_da_pagina(conteudo: Tag | BeautifulSoup) -> str | None:
+    """Texto do aviso de lista vazia que o próprio SIGAA mostra (ex.: "Nenhum bloqueio encontrado...")."""
+    for el in conteudo.find_all(["td", "p", "div", "li", "span"]):
+        if el.find(["td", "p", "div", "li", "table", "tr"]) is not None:
+            continue  # só elementos folha
+        texto = " ".join(el.get_text(" ", strip=True).split())
+        if texto and len(texto) <= 200 and _REGEX_MENSAGEM_VAZIA.match(texto):
+            return texto
+    return None
 
 
 def parse_listagem_generica(
@@ -131,6 +150,7 @@ def parse_listagem_generica(
             f"Assinatura estrutural para a listagem '{tipo}' não reconhecida.",
         )
 
+    mensagem_pagina = _mensagem_vazia_da_pagina(conteudo)
     tabelas_extraidas: list[TabelaListagemGenerica] = []
     for table in conteudo.find_all("table"):
         classes_t = {str(c) for c in (table.get("class") or [])}
@@ -147,10 +167,19 @@ def parse_listagem_generica(
         cap = table.find("caption")
         titulo_tab = " ".join(cap.get_text(" ", strip=True).split()) if cap else (titulo_da_tela(html) or tipo)
         cabecalhos = [h for h in ths_brutos if h]
+        if not cabecalhos:
+            # Layout real: cabeçalho em `<thead>` com células `<td>` (ex.: indicações de bolsa).
+            thead = table.find("thead")
+            if thead is not None:
+                cabecalhos = [
+                    t for t in (" ".join(c.get_text(" ", strip=True).split()) for c in thead.find_all(["td", "th"])) if t
+                ]
 
         linhas: list[list[str]] = []
         truncada = False
         for tr in table.find_all("tr"):
+            if tr.find_parent("thead") is not None:
+                continue
             tds = tr.find_all("td")
             if not tds:
                 continue
@@ -158,6 +187,8 @@ def parse_listagem_generica(
             valores_nao_vazios = [v for v in valores if v]
             if not valores_nao_vazios:
                 continue
+            if mensagem_pagina is not None and valores_nao_vazios == [mensagem_pagina]:
+                continue  # a linha é o aviso de lista vazia, não um registro
             if len(linhas) >= max_linhas:
                 truncada = True
                 break
@@ -177,7 +208,7 @@ def parse_listagem_generica(
         return ResultadoListagemGenerica(
             tipo=tipo,
             vazio=True,
-            mensagem="Nenhum item listado.",
+            mensagem=mensagem_pagina or "Nenhum item listado.",
             tabelas=[],
         )
 

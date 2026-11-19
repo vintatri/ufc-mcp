@@ -129,3 +129,23 @@ def exigir_postback(view: str, rotulo: str) -> None:
             f"Postback ({view_limpa!r}, {rotulo_limpo!r}) fora da lista de leitura permitida.",
             detalhes={"view": view_limpa, "rotulo": rotulo_limpo},
         )
+
+
+def titulo_material_seguro(titulo: str) -> bool:
+    """Falso se o título do link coincide com ação proibida ou contém verbo de mutação."""
+    t = " ".join(titulo.split())
+    return not (
+        t in ACOES_PROIBIDAS_CONHECIDAS
+        or any(p.lower() in t.lower() for p in ACOES_PROIBIDAS_CONHECIDAS if " " in p)
+        or REGEX_VERBOS_PROIBIDOS.search(t)
+    )
+
+
+def exigir_titulo_material(titulo: str) -> None:
+    """Recusa baixar link cujo título real indica ação de escrita (ex.: Votar, Enviar, Remover)."""
+    if not titulo_material_seguro(titulo):
+        raise ErroUfc(
+            CodigoErro.ACAO_BLOQUEADA,
+            f"Link recusado: o título '{titulo[:80]}' indica ação de escrita, não um arquivo.",
+            detalhes={"titulo": titulo[:80]},
+        )

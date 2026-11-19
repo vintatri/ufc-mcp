@@ -54,7 +54,7 @@ class TurmaPortal(BaseModel):
     horarios: list[Horario] = Field(default_factory=list)
     inicio_vigencia: str | None = None
     fim_vigencia: str | None = None
-    carga_horaria_h: int = 64
+    carga_horaria_h: int | None = None  # None = não informada (não presumir 64)
 
 
 class AtividadePortal(BaseModel):

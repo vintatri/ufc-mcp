@@ -34,6 +34,9 @@ USER_AGENT_PADRAO = (
     "ufc-mcp/0.9 (cliente pessoal de estudante da UFC; leitura da propria conta; projeto academico de codigo aberto)"
 )
 
+MAX_BYTES_PADRAO = 26_214_400  # 25 MB, verificado durante o streaming
+MAX_SALTOS = 6  # requisições encadeadas (a 6ª resposta ainda pode ser redirecionamento -> erro)
+
 REGEX_CONTENT_DISPOSITION_FILENAME = re.compile(
     r"""filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)""", re.IGNORECASE
 )
@@ -72,15 +75,49 @@ def validar_e_normalizar_url(url: str) -> tuple[str, str]:
             f"Esquema de URL não permitido: {esquema}",
         )
     host = (parsed.hostname or "").lower()
+    try:
+        porta = parsed.port
+    except ValueError as exc:
+        raise ErroUfc(CodigoErro.ACAO_BLOQUEADA, "Porta de URL inválida.") from exc
+    if porta is not None and porta != (80 if esquema == "http" else 443):
+        raise ErroUfc(
+            CodigoErro.ACAO_BLOQUEADA,
+            f"Porta não permitida: {porta} (somente 443).",
+            detalhes={"host": host, "porta": porta},
+        )
     if host not in HOSTS_PERMITIDOS:
         raise ErroUfc(
             CodigoErro.ACAO_BLOQUEADA,
             f"Domínio bloqueado pela política de segurança: {host}",
             detalhes={"host": host},
         )
-    if esquema == "http":
-        parsed = parsed._replace(scheme="https")
+    # força https na porta padrão e descarta credenciais/porta embutidas no netloc
+    parsed = parsed._replace(scheme="https", netloc=host)
     return urlunparse(parsed), host
+
+
+async def _ler_com_limite(resp: httpx.Response, max_bytes: int) -> httpx.Response:
+    """Lê o corpo em streaming e aborta assim que passar de `max_bytes` (sem carregar tudo)."""
+    excedeu = ErroUfc(
+        CodigoErro.PARAMETRO_INVALIDO,
+        f"Resposta excede o limite de segurança de {max_bytes // 1_048_576} MB.",
+    )
+    declarado = resp.headers.get("content-length")
+    if declarado and declarado.isdigit() and int(declarado) > max_bytes:
+        raise excedeu
+    buf = bytearray()
+    async for pedaco in resp.aiter_bytes():
+        buf.extend(pedaco)
+        if len(buf) > max_bytes:
+            raise excedeu
+    cabecalhos = [
+        (k, v)
+        for k, v in resp.headers.multi_items()
+        if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+    ]
+    return httpx.Response(
+        resp.status_code, headers=cabecalhos, content=bytes(buf), request=resp.request
+    )
 
 
 class ClienteEducado:
@@ -137,11 +174,14 @@ class ClienteEducado:
     async def _aguardar_vez_e_contabilizar(self, host: str) -> None:
         agora = self._relogio()
         self._limpar_janelas(agora)
-        if len(self._janela_minuto) >= self.limites.max_por_minuto:
-            raise ErroUfc(
-                CodigoErro.LIMITE_DE_REQUISICOES,
-                f"Limite de {self.limites.max_por_minuto} requisições/minuto atingido.",
-            )
+        # Teto por minuto: espera a janela liberar (no máximo 60 s) em vez de falhar, o que mantém o
+        # limite e deixa ferramentas que leem várias telas, como `alertas`, terminarem completas.
+        # Os tetos de hora e de dia não esperam: continuam recusando.
+        while len(self._janela_minuto) >= self.limites.max_por_minuto:
+            espera = 60.0 - (agora - self._janela_minuto[0]) + 0.01
+            await self._dormir(min(max(espera, 0.01), 60.0))
+            agora = self._relogio()
+            self._limpar_janelas(agora)
         if len(self._janela_hora) >= self.limites.max_por_hora:
             raise ErroUfc(
                 CodigoErro.LIMITE_DE_REQUISICOES,
@@ -184,6 +224,7 @@ class ClienteEducado:
         dados: dict[str, str] | None = None,
         cookies: httpx.Cookies | None = None,
         referer_inicial: str | None = None,
+        max_bytes: int = MAX_BYTES_PADRAO,
     ) -> tuple[httpx.Response, str, str]:
         url_atual, host_atual = validar_e_normalizar_url(url)
         metodo_atual = metodo.upper()
@@ -192,15 +233,10 @@ class ClienteEducado:
         jar = cookies if cookies is not None else httpx.Cookies()
         base_headers = {
             "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
+            # apenas codificações que o cliente sabe decodificar (sem brotli/zstd instalados)
+            "Accept-Encoding": "gzip, deflate",
         }
 
         async with httpx.AsyncClient(
@@ -211,17 +247,20 @@ class ClienteEducado:
             transport=self._transporte,
         ) as client:
             referer = referer_inicial or "https://si3.ufc.br/sigaa/verTelaLogin.do"
-            for _salto in range(6):
+            for _salto in range(MAX_SALTOS):
                 lock = self._obter_lock(host_atual)
                 async with lock:
                     await self._aguardar_vez_e_contabilizar(host_atual)
                     try:
                         request_headers = dict(base_headers)
                         request_headers["Referer"] = referer
-                        if metodo_atual == "POST":
-                            resp = await client.post(url_atual, data=dados_atuais or {}, headers=request_headers)
-                        else:
-                            resp = await client.get(url_atual, headers=request_headers)
+                        async with client.stream(
+                            metodo_atual,
+                            url_atual,
+                            data=(dados_atuais or {}) if metodo_atual == "POST" else None,
+                            headers=request_headers,
+                        ) as resp_stream:
+                            resp = await _ler_com_limite(resp_stream, max_bytes)
                     except httpx.TimeoutException as exc:
                         raise ErroUfc(
                             CodigoErro.TEMPO_ESGOTADO,
@@ -271,7 +310,7 @@ class ClienteEducado:
 
         raise ErroUfc(
             CodigoErro.SIGAA_INDISPONIVEL,
-            "Número máximo de redirecionamentos HTTP excedido (limite = 5).",
+            f"Número máximo de requisições encadeadas excedido ({MAX_SALTOS} saltos).",
         )
 
 
@@ -348,18 +387,13 @@ class ClienteEducado:
         url: str,
         *,
         cookies: httpx.Cookies,
-        max_bytes: int = 26_214_400,
+        max_bytes: int = MAX_BYTES_PADRAO,
     ) -> RespostaBinaria:
         """GET autenticado para arquivos anexados (ex.: /sigaa/verFoto?idArquivo=...)."""
         resp, url_final, _host_final = await self._executar_com_redirecionamento(
-            "GET", url, cookies=cookies
+            "GET", url, cookies=cookies, max_bytes=max_bytes
         )
         conteudo = resp.content
-        if len(conteudo) > max_bytes:
-            raise ErroUfc(
-                CodigoErro.PARAMETRO_INVALIDO,
-                "Arquivo excede o limite de segurança de 25 MB.",
-            )
         cd = resp.headers.get("content-disposition", "")
         nome_sugerido: str | None = None
         m = REGEX_CONTENT_DISPOSITION_FILENAME.search(cd)
@@ -380,17 +414,12 @@ class ClienteEducado:
         dados: dict[str, str],
         *,
         cookies: httpx.Cookies,
-        max_bytes: int = 26_214_400,
+        max_bytes: int = MAX_BYTES_PADRAO,
     ) -> RespostaBinaria:
         resp, url_final, _host_final = await self._executar_com_redirecionamento(
-            "POST", url, dados=dados, cookies=cookies
+            "POST", url, dados=dados, cookies=cookies, max_bytes=max_bytes
         )
         conteudo = resp.content
-        if len(conteudo) > max_bytes:
-            raise ErroUfc(
-                CodigoErro.PARAMETRO_INVALIDO,
-                "Arquivo excede o limite de segurança de 25 MB.",
-            )
         cd = resp.headers.get("content-disposition", "")
         nome_sugerido: str | None = None
         m = REGEX_CONTENT_DISPOSITION_FILENAME.search(cd)

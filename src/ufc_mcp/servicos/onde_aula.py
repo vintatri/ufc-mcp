@@ -13,7 +13,7 @@ from typing import Literal
 from ufc_mcp.fontes.calendario.cliente import ClienteCalendario
 from ufc_mcp.fontes.sigaa.cliente import ClienteSigaa
 from ufc_mcp.nucleo.erros import CodigoErro, ErroUfc
-from ufc_mcp.nucleo.higiene import TextoExterno
+from ufc_mcp.nucleo.higiene import TextoExterno, externo
 from ufc_mcp.nucleo.modelos_base import BaseModel, Field
 from ufc_mcp.servicos.horario import Horario
 
@@ -46,7 +46,21 @@ StatusInferidoAula = Literal[
     "POSSIVEL_CANCELAMENTO",
     "DIA_DE_AVALIACAO",
     "FERIADO_CALENDARIO",
+    "DADOS_INDISPONIVEIS",
 ]
+
+TipoSinalAula = Literal[
+    "FERIADO", "AVALIACAO_AGENDADA", "CANCELAMENTO", "MUDANCA_SALA", "MENCAO_AVALIACAO"
+]
+
+
+class SinalDetectado(BaseModel):
+    """Sinal inferido: `descricao` é texto do sistema; o trecho de terceiros vai em TextoExterno."""
+
+    tipo: TipoSinalAula
+    fonte: str
+    descricao: str
+    trecho: TextoExterno | None = None
 
 
 class AvisoAnalisadoAula(BaseModel):
@@ -67,7 +81,8 @@ class DiagnosticoOndeAulaItem(BaseModel):
     bloco: str
     sala: str
     status_inferido: StatusInferidoAula
-    sinais_detectados: list[str] = Field(default_factory=list)
+    sinais_detectados: list[SinalDetectado] = Field(default_factory=list)
+    leituras_indisponiveis: list[str] = Field(default_factory=list)
     topico_plano_aula: TextoExterno | None = None
     ultimos_avisos: list[AvisoAnalisadoAula] = Field(default_factory=list)
 
@@ -159,6 +174,7 @@ async def consultar_onde_e_minha_aula(
         data_iso, data_iso, atualizar=atualizar
     )
     feriados_dia = [ev.descricao for ev in eventos_dia if ev.eh_feriado_ou_recesso]
+    avisos_gerais: list[str] = []
 
     aulas_resultado: list[DiagnosticoOndeAulaItem] = []
 
@@ -170,12 +186,20 @@ async def consultar_onde_e_minha_aula(
             continue
 
         centro, bloco, sala = decompor_local_ufc(turma.local)
-        sinais: list[str] = []
+        sinais: list[SinalDetectado] = []
+        indisponiveis: list[str] = []
         status: StatusInferidoAula = "NORMAL"
 
         if feriados_dia:
             status = "FERIADO_CALENDARIO"
-            sinais.append(f"Calendário Universitário registra feriado/recesso: {feriados_dia[0]}")
+            sinais.append(
+                SinalDetectado(
+                    tipo="FERIADO",
+                    fonte="Calendário Universitário",
+                    descricao="O Calendário Universitário registra feriado/recesso nesta data.",
+                    trecho=externo(feriados_dia[0], origem="calendario:feriado", max_chars=300),
+                )
+            )
 
         # 1. Plano de Curso (tópico exato da data)
         topico_plano: TextoExterno | None = None
@@ -185,8 +209,11 @@ async def consultar_onde_e_minha_aula(
                 if item_c.data == data_iso:
                     topico_plano = item_c.topico
                     break
-        except ErroUfc:
-            pass
+        except ErroUfc as exc:
+            indisponiveis.append("plano de curso")
+            avisos_gerais.append(
+                f"Turma {turma.id_turma}: leitura do plano de curso falhou ({exc.codigo})."
+            )
 
         # 2. Avaliações agendadas na data
         try:
@@ -194,9 +221,19 @@ async def consultar_onde_e_minha_aula(
             for av in avals.avaliacoes:
                 if av.data == data_iso:
                     status = "DIA_DE_AVALIACAO"
-                    sinais.append(f"Avaliação agendada na data: {av.descricao.texto_externo}")
-        except ErroUfc:
-            pass
+                    sinais.append(
+                        SinalDetectado(
+                            tipo="AVALIACAO_AGENDADA",
+                            fonte="Avaliações da Turma Virtual",
+                            descricao="Avaliação agendada na data.",
+                            trecho=av.descricao,
+                        )
+                    )
+        except ErroUfc as exc:
+            indisponiveis.append("avaliações agendadas")
+            avisos_gerais.append(
+                f"Turma {turma.id_turma}: leitura das avaliações falhou ({exc.codigo})."
+            )
 
         # 3. Avisos da Turma Virtual com Filtro de Relevância Temporal
         avisos_analisados: list[AvisoAnalisadoAula] = []
@@ -219,8 +256,11 @@ async def consultar_onde_e_minha_aula(
                         motivo_relevancia=motivo,
                     )
                 )
-        except ErroUfc:
-            pass
+        except ErroUfc as exc:
+            indisponiveis.append("avisos do professor")
+            avisos_gerais.append(
+                f"Turma {turma.id_turma}: leitura dos avisos falhou ({exc.codigo})."
+            )
 
         # 4. Aplicar detectores semânticos apenas nos textos relevantes para a data
         textos_para_inspecionar: list[tuple[str, str]] = []
@@ -233,15 +273,41 @@ async def consultar_onde_e_minha_aula(
                 )
 
         for fonte_sinal, txt_sinal in textos_para_inspecionar:
+            trecho = externo(txt_sinal, origem=f"turma:{turma.id_turma}:sinal", max_chars=600)
             if REGEX_CANCELAMENTO_AULA.search(txt_sinal):
                 status = "POSSIVEL_CANCELAMENTO"
-                sinais.append(f"[{fonte_sinal}] Indício de cancelamento/suspensão: {txt_sinal}")
+                sinais.append(
+                    SinalDetectado(
+                        tipo="CANCELAMENTO",
+                        fonte=fonte_sinal,
+                        descricao="Indício de cancelamento/suspensão.",
+                        trecho=trecho,
+                    )
+                )
             elif REGEX_MUDANCA_SALA.search(txt_sinal) and status != "POSSIVEL_CANCELAMENTO":
                 status = "POSSIVEL_MUDANCA_SALA"
-                sinais.append(f"[{fonte_sinal}] Indício de mudança de sala/laboratório: {txt_sinal}")
+                sinais.append(
+                    SinalDetectado(
+                        tipo="MUDANCA_SALA",
+                        fonte=fonte_sinal,
+                        descricao="Indício de mudança de sala/laboratório.",
+                        trecho=trecho,
+                    )
+                )
             elif REGEX_DIA_AVALIACAO.search(txt_sinal) and status == "NORMAL":
                 status = "DIA_DE_AVALIACAO"
-                sinais.append(f"[{fonte_sinal}] Menção a avaliação/prova: {txt_sinal}")
+                sinais.append(
+                    SinalDetectado(
+                        tipo="MENCAO_AVALIACAO",
+                        fonte=fonte_sinal,
+                        descricao="Menção a avaliação/prova.",
+                        trecho=trecho,
+                    )
+                )
+
+        if indisponiveis and status == "NORMAL":
+            # nunca apresentar "NORMAL" como dado real quando faltou ler fontes
+            status = "DADOS_INDISPONIVEIS"
 
         aulas_resultado.append(
             DiagnosticoOndeAulaItem(
@@ -255,6 +321,7 @@ async def consultar_onde_e_minha_aula(
                 sala=sala,
                 status_inferido=status,
                 sinais_detectados=sinais,
+                leituras_indisponiveis=indisponiveis,
                 topico_plano_aula=topico_plano,
                 ultimos_avisos=avisos_analisados,
             )
@@ -264,6 +331,9 @@ async def consultar_onde_e_minha_aula(
         "data": data_iso,
         "dia_semana": sigla_dia,
         "eh_feriado_ou_recesso": len(feriados_dia) > 0,
-        "eventos_calendario_dia": feriados_dia,
+        "eventos_calendario_dia": [
+            externo(f, origem="calendario:evento", max_chars=300).model_dump() for f in feriados_dia
+        ],
         "aulas": [a.model_dump() for a in aulas_resultado],
+        "avisos": avisos_gerais,
     }

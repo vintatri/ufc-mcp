@@ -16,11 +16,15 @@ from ufc_mcp.fontes.sigaa.cliente import ClienteSigaa
 from ufc_mcp.nucleo.erros import ErroUfc
 from ufc_mcp.nucleo.higiene import TextoExterno
 from ufc_mcp.nucleo.modelos_base import BaseModel
-from ufc_mcp.servicos.faltas import DiagnosticoFaltasDisciplina, calcular_faltas_disciplina
+from ufc_mcp.servicos.faltas import (
+    DiagnosticoFaltasDisciplina,
+    calcular_faltas_disciplina,
+    ler_faltas_turma,
+)
 from ufc_mcp.servicos.notas_ufc import DiagnosticoNotasUfc, diagnosticar_notas_ufc
 
-SeveridadeAlerta = Literal["CRITICO", "ATENCAO", "INFORMATIVO", "CONCLUIDA", "OK"]
-CorSemaforo = Literal["VERMELHO", "AMARELO", "VERDE"]
+SeveridadeAlerta = Literal["CRITICO", "ATENCAO", "INFORMATIVO", "CONCLUIDA", "OK", "INDISPONIVEL"]
+CorSemaforo = Literal["VERMELHO", "AMARELO", "VERDE", "CINZA"]
 
 
 class AlertaTarefaItem(BaseModel):
@@ -50,7 +54,8 @@ class AlertaAvaliacaoItem(BaseModel):
 class AlertaNotaDisciplina(BaseModel):
     id_turma: str
     turma: str
-    diagnostico: DiagnosticoNotasUfc
+    diagnostico: DiagnosticoNotasUfc | None = None
+    estado: Literal["OK", "DADOS_INDISPONIVEIS"] = "OK"
     severidade: SeveridadeAlerta
     semaforo: CorSemaforo
     motivo: str | None = None
@@ -90,8 +95,8 @@ def classificar_alerta_nota(diag: DiagnosticoNotasUfc) -> tuple[SeveridadeAlerta
         return "CRITICO", "VERMELHO", "média necessária nas avaliações restantes > 8,5"
     if sit == "AGUARDANDO_AVALIACAO_FINAL":
         return "ATENCAO", "AMARELO", "aguardando Avaliação Final"
-    mp = diag.media_parcial_atual
-    if mp is not None and 4.0 <= mp < 7.0 and sit in ("EM_CURSO_APROVAVEL_POR_MEDIA", "EM_CURSO_EXIGE_AF"):
+    mp = diag.media_parcial_exata if diag.media_parcial_exata is not None else diag.media_parcial_atual
+    if mp is not None and 4.0 <= mp < 7.0 - 1e-9 and sit in ("EM_CURSO_APROVAVEL_POR_MEDIA", "EM_CURSO_EXIGE_AF"):
         return "ATENCAO", "AMARELO", "média parcial entre 4,0 e 6,9 com avaliações pendentes"
     return "OK", "VERDE", None
 
@@ -196,43 +201,57 @@ async def gerar_radar_alertas(
     alertas_avaliacoes: list[AlertaAvaliacaoItem] = []
     alertas_notas: list[AlertaNotaDisciplina] = []
 
+    avisos: list[str] = []
+    leituras_indisponiveis: list[dict[str, str]] = []
+
+    def _falha(id_turma: str, secao: str, exc: ErroUfc) -> None:
+        leituras_indisponiveis.append(
+            {"id_turma": id_turma, "secao": secao, "codigo_erro": str(exc.codigo)}
+        )
+        avisos.append(f"Turma {id_turma}: leitura de {secao} falhou ({exc.codigo}); dados indisponíveis.")
+
     for turma in portal.turmas:
-        faltas_h = 0
-        notas_lancadas: list[float] = []
-        mp_inf: float | None = None
+        nome_turma = f"{turma.codigo} - {turma.nome}"
+        faltas_h, avs_faltas = await ler_faltas_turma(sigaa, turma.id_turma, atualizar=atualizar)
+        avisos.extend(avs_faltas)
 
         try:
             notas_t, _, _ = await sigaa.obter_turma_notas(turma.id_turma, atualizar=atualizar)
-            if notas_t.faltas is not None:
-                faltas_h = notas_t.faltas
             notas_lancadas = [av.nota for av in notas_t.avaliacoes if av.nota is not None]
-            mp_inf = notas_t.media_parcial
-            total_unid = max(3, len(notas_t.avaliacoes)) if notas_t.avaliacoes else 3
+            # Total real de unidades = avaliações listadas no SIGAA; sem lista, presume 3 e avisa.
+            total_unid = len(notas_t.avaliacoes) if notas_t.avaliacoes else None
             diag_n = diagnosticar_notas_ufc(
                 notas_lancadas,
                 total_unidades_previstas=total_unid,
-                media_parcial_informada=mp_inf,
+                media_parcial_informada=notas_t.media_parcial,
             )
             sev_n, cor_n, motivo_n = classificar_alerta_nota(diag_n)
+            for av_n in diag_n.avisos:
+                avisos.append(f"{nome_turma}: {av_n}")
 
             alertas_notas.append(
                 AlertaNotaDisciplina(
                     id_turma=turma.id_turma,
-                    turma=f"{turma.codigo} - {turma.nome}",
+                    turma=nome_turma,
                     diagnostico=diag_n,
                     severidade=sev_n,
                     semaforo=cor_n,
                     motivo=motivo_n,
                 )
             )
-        except ErroUfc:
-            pass
-
-        try:
-            freq_t, _, _ = await sigaa.obter_turma_frequencia(turma.id_turma, atualizar=atualizar)
-            faltas_h = max(faltas_h, freq_t.total_faltas_horas)
-        except ErroUfc:
-            pass
+        except ErroUfc as exc:
+            _falha(turma.id_turma, "notas", exc)
+            alertas_notas.append(
+                AlertaNotaDisciplina(
+                    id_turma=turma.id_turma,
+                    turma=nome_turma,
+                    diagnostico=None,
+                    estado="DADOS_INDISPONIVEIS",
+                    severidade="INDISPONIVEL",
+                    semaforo="CINZA",
+                    motivo="notas não puderam ser lidas; situação desconhecida — confirme no SIGAA",
+                )
+            )
 
         diag_f = calcular_faltas_disciplina(
             id_turma=turma.id_turma,
@@ -241,6 +260,7 @@ async def gerar_radar_alertas(
             carga_horaria_h=turma.carga_horaria_h,
             faltas_registradas_h=faltas_h,
         )
+        avisos.extend(f"{turma.codigo}: {x}" for x in diag_f.avisos)
         alertas_faltas.append(diag_f)
 
         try:
@@ -250,7 +270,7 @@ async def gerar_radar_alertas(
                     continue
                 al_t = classificar_tarefa_prazo_envio(
                     id_turma=turma.id_turma,
-                    turma=f"{turma.codigo} - {turma.nome}",
+                    turma=nome_turma,
                     titulo=item_tar.titulo,
                     fim_entrega_iso=item_tar.fim_entrega,
                     enviada=item_tar.enviada,
@@ -262,8 +282,8 @@ async def gerar_radar_alertas(
                         tarefas_concluidas.append(al_t)
                     else:
                         alertas_tarefas.append(al_t)
-        except ErroUfc:
-            pass
+        except ErroUfc as exc:
+            _falha(turma.id_turma, "tarefas", exc)
 
         try:
             aval_t, _, _ = await sigaa.obter_turma_avaliacoes(turma.id_turma, atualizar=atualizar)
@@ -279,7 +299,7 @@ async def gerar_radar_alertas(
                     alertas_avaliacoes.append(
                         AlertaAvaliacaoItem(
                             id_turma=turma.id_turma,
-                            turma=f"{turma.codigo} - {turma.nome}",
+                            turma=nome_turma,
                             data=av.data,
                             hora=av.hora,
                             descricao=av.descricao,
@@ -288,16 +308,19 @@ async def gerar_radar_alertas(
                             semaforo=cor_av,
                         )
                     )
-        except ErroUfc:
-            pass
+        except ErroUfc as exc:
+            _falha(turma.id_turma, "avaliações agendadas", exc)
 
     situacao_bib: list[dict[str, str]] = []
     try:
         bib, _, _ = await sigaa.obter_situacao_biblioteca(atualizar=atualizar)
         for sec in bib.secoes:
             situacao_bib.extend(sec.itens)
-    except ErroUfc:
-        pass
+    except ErroUfc as exc:
+        avisos.append(f"Leitura da situação na biblioteca falhou ({exc.codigo}); dados indisponíveis.")
+        leituras_indisponiveis.append(
+            {"id_turma": "", "secao": "biblioteca", "codigo_erro": str(exc.codigo)}
+        )
 
     resumo_criticos = (
         sum(1 for f in alertas_faltas if f.severidade == "CRITICO")
@@ -306,8 +329,16 @@ async def gerar_radar_alertas(
         + sum(1 for n in alertas_notas if n.severidade == "CRITICO")
     )
 
+    if leituras_indisponiveis:
+        avisos.insert(
+            0,
+            "RESULTADO PARCIAL: algumas leituras falharam (ver `leituras_indisponiveis`). Não conclua "
+            "que não há pendências nas partes indisponíveis; confirme no SIGAA ou tente de novo.",
+        )
+
     return {
         "referencia_temporal": ref_agora.isoformat(),
+        "resultado_completo": not leituras_indisponiveis,
         "dias_antecedencia": dias_antecedencia,
         "total_alertas_criticos": resumo_criticos,
         "faltas_art_113": [f.model_dump() for f in alertas_faltas],
@@ -316,4 +347,6 @@ async def gerar_radar_alertas(
         "tarefas_concluidas": [t.model_dump() for t in tarefas_concluidas],
         "avaliacoes_proximas": [a.model_dump() for a in alertas_avaliacoes],
         "biblioteca": situacao_bib,
+        "leituras_indisponiveis": leituras_indisponiveis,
+        "avisos": avisos,
     }

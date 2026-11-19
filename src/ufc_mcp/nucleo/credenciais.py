@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import os
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -22,6 +22,7 @@ AAD_COFRE_ARQUIVO = b"ufc-mcp cofre v1"
 SERVICO_KEYRING = "ufc-mcp"
 CHAVE_CRED_KEYRING = "sigaa"
 CHAVE_SESSAO_KEYRING = "sigaa-sessao"
+MIN_FRASE_MESTRA = 12
 
 
 class Credencial(BaseModel):
@@ -43,32 +44,28 @@ class SessaoGuardada(BaseModel):
 def _derivar_chave_argon2id(frase_mestra: str, salt: bytes) -> bytes:
     """
     Deriva chave de 32 bytes com Argon2id (64 MiB, time_cost=3, parallelism=1).
-    Se argon2-cffi não estiver instalado no ambiente de teste isolado, usa scrypt equivalente.
+    `argon2-cffi` é dependência obrigatória: sem ele, falha com erro claro
+    (nunca troca silenciosamente de KDF, o que tornaria o cofre ilegível/mais fraco).
     """
     try:
         from argon2.low_level import Type, hash_secret_raw
-
-        return bytes(
-            hash_secret_raw(
-                secret=frase_mestra.encode("utf-8"),
-                salt=salt,
-                time_cost=3,
-                memory_cost=65536,
-                parallelism=1,
-                hash_len=32,
-                type=Type.ID,
-            )
-        )
-    except ImportError:
-        return hashlib.scrypt(
-            frase_mestra.encode("utf-8"),
+    except ImportError as exc:
+        raise ErroUfc(
+            CodigoErro.COFRE_INDISPONIVEL,
+            "O pacote `argon2-cffi` é necessário para o cofre em arquivo e não está instalado. "
+            "Reinstale o ufc-mcp com suas dependências.",
+        ) from exc
+    return bytes(
+        hash_secret_raw(
+            secret=frase_mestra.encode("utf-8"),
             salt=salt,
-            n=16384,
-            r=8,
-            p=1,
-            maxmem=67108864,
-            dklen=32,
+            time_cost=3,
+            memory_cost=65536,
+            parallelism=1,
+            hash_len=32,
+            type=Type.ID,
         )
+    )
 
 
 def _gravar_privado(caminho: Path, dados: bytes) -> None:
@@ -190,8 +187,15 @@ class CofreSistema:
     def limpar(self) -> None:
         kr = self._obter_kr()
         for chave in (CHAVE_CRED_KEYRING, CHAVE_SESSAO_KEYRING):
-            with contextlib.suppress(Exception):
+            try:
                 kr.delete_password(SERVICO_KEYRING, chave)
+            except Exception as exc:
+                if exc.__class__.__name__ == "PasswordDeleteError":
+                    continue  # nada guardado nesta chave
+                raise ErroUfc(
+                    CodigoErro.COFRE_INDISPONIVEL,
+                    f"Falha ao apagar '{chave}' do chaveiro: {exc.__class__.__name__}",
+                ) from exc
 
 
 class CofreSessao:
@@ -253,8 +257,14 @@ class CofreSessao:
     def limpar(self) -> None:
         self._memoria = None
         if self._kr is not None:
-            with contextlib.suppress(Exception):
+            try:
                 self._kr.delete_password(SERVICO_KEYRING, CHAVE_SESSAO_KEYRING)
+            except Exception as exc:
+                if exc.__class__.__name__ != "PasswordDeleteError":
+                    raise ErroUfc(
+                        CodigoErro.COFRE_INDISPONIVEL,
+                        f"Falha ao apagar a sessão do chaveiro: {exc.__class__.__name__}",
+                    ) from exc
         if self._arquivo_fallback is not None and self._arquivo_fallback.exists():
             self._arquivo_fallback.unlink()
 
@@ -266,10 +276,10 @@ class CofreArquivo:
     """
 
     def __init__(self, caminho_arquivo: Path, frase_mestra: str) -> None:
-        if not frase_mestra or len(frase_mestra) < 4:
+        if not frase_mestra or len(frase_mestra) < MIN_FRASE_MESTRA:
             raise ErroUfc(
                 CodigoErro.PARAMETRO_INVALIDO,
-                "A frase-mestra do CofreArquivo deve possuir pelo menos 4 caracteres.",
+                f"A frase-mestra do CofreArquivo deve possuir pelo menos {MIN_FRASE_MESTRA} caracteres.",
             )
         self.caminho_arquivo = caminho_arquivo
         self._frase_mestra = frase_mestra
@@ -448,10 +458,52 @@ class CofreComposto:
             raise ultimo
         return None
 
-    def limpar(self) -> None:
+    def limpar_relatorio(self) -> RelatorioLogout:
+        """Limpa todos os cofres e reporta o que foi apagado e o que falhou."""
+        rel = RelatorioLogout()
         for cofre in self._cofres:
-            with contextlib.suppress(Exception):
+            try:
                 cofre.limpar()
+                rel.apagados.append(cofre.descricao())
+            except ErroUfc as exc:
+                if exc.codigo == CodigoErro.COFRE_INDISPONIVEL and "indispon" in exc.mensagem.lower():
+                    rel.ignorados.append(f"{cofre.descricao()}: {exc.mensagem}")
+                else:
+                    rel.falhas.append(f"{cofre.descricao()}: {exc.mensagem}")
+            except OSError as exc:
+                rel.falhas.append(f"{cofre.descricao()}: {exc.__class__.__name__}")
+        return rel
+
+    def limpar(self) -> None:
+        rel = self.limpar_relatorio()
+        if rel.falhas:
+            raise ErroUfc(
+                CodigoErro.COFRE_INDISPONIVEL,
+                "Falha ao limpar cofres: " + "; ".join(rel.falhas),
+            )
+
+
+@dataclass
+class RelatorioLogout:
+    """Resultado do logout: o que foi apagado, ignorado (indisponível) e o que falhou."""
+
+    apagados: list[str] = field(default_factory=list)
+    ignorados: list[str] = field(default_factory=list)
+    falhas: list[str] = field(default_factory=list)
+
+
+def apagar_arquivos_cofre(pasta_config: Path) -> RelatorioLogout:
+    """Apaga explicitamente `cofre.bin` e `sessao_efemera.json`, mesmo sem frase-mestra."""
+    rel = RelatorioLogout()
+    for nome in ("cofre.bin", "sessao_efemera.json"):
+        caminho = pasta_config / nome
+        try:
+            if caminho.exists():
+                caminho.unlink()
+                rel.apagados.append(nome)
+        except OSError as exc:
+            rel.falhas.append(f"{nome}: {exc.__class__.__name__}")
+    return rel
 
 
 def cofre_padrao(pasta_config: Path) -> CofreComposto:

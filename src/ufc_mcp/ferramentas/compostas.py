@@ -1,14 +1,14 @@
 """
 Ferramentas Compostas do Copiloto Acadêmico e Tutoria Pedagógica (`compostas.py`):
-27. `aula`
-28. `alertas`
-29. `grade`
-30. `estudo`
-31. `dia`
-32. `semana`
-33. `faltas`
-34. `matricula`
-35. `ics`
+- `aula`
+- `alertas`
+- `grade`
+- `estudo`
+- `dia`
+- `semana`
+- `faltas`
+- `matricula`
+- `ics`
 """
 
 from __future__ import annotations
@@ -18,18 +18,24 @@ from typing import Literal
 
 from ufc_mcp.ferramentas import ContextoApp, DefinicaoFerramenta
 from ufc_mcp.fontes.ru.resolucao import resolver_restaurante
-from ufc_mcp.nucleo.erros import ErroUfc
 from ufc_mcp.servicos.agenda_ics import exportar_arquivo_ics
 from ufc_mcp.servicos.alertas import gerar_radar_alertas
-from ufc_mcp.servicos.faltas import calcular_faltas_disciplina
+from ufc_mcp.servicos.faltas import calcular_faltas_disciplina, ler_faltas_turma
 from ufc_mcp.servicos.meu_dia import construir_meu_dia, construir_minha_semana
 from ufc_mcp.servicos.onde_aula import consultar_onde_e_minha_aula
 from ufc_mcp.servicos.planejador import (
     EstrategiaSimulacao,
     analisar_elegibilidade_curricular,
+    proximo_periodo_letivo,
     simular_grades_otimizadas,
 )
 from ufc_mcp.servicos.tutoria import FocoEstudo, construir_plano_estudo_orientado
+
+
+def _avisos(res: dict[str, object]) -> list[str]:
+    """Extrai a lista de avisos (leituras que falharam etc.) para o envelope."""
+    brutos = res.get("avisos")
+    return [str(x) for x in brutos] if isinstance(brutos, list) else []
 
 
 def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerramenta]:
@@ -49,7 +55,7 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
                 id_turma=id_turma,
                 atualizar=atualizar,
             )
-            return res, False, 0, True, []
+            return res, False, 0, True, _avisos(res)
 
         return await ctx.executar_com_envelope(
             nome="aula",
@@ -70,7 +76,7 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
                 dias_antecedencia=max(1, min(dias_antecedencia, 30)),
                 atualizar=atualizar,
             )
-            return res, False, 0, True, []
+            return res, False, 0, True, _avisos(res)
 
         return await ctx.executar_com_envelope(
             nome="alertas",
@@ -80,8 +86,8 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
         )
 
     async def grade(
-        ano: int = 2026,
-        periodo: int = 2,
+        ano: int | None = None,
+        periodo: int | None = None,
         max_disciplinas: int = 5,
         estrategia: EstrategiaSimulacao = "diversificada",
         turno_preferido: Literal["manha", "tarde", "noite", "qualquer"] = "qualquer",
@@ -92,9 +98,18 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
         """Conselheiro e otimizador combinatório de matrícula: constrói e valida o grafo acíclico direcionado (DAG) de pré-requisitos e co-requisitos do curso, cruza com as turmas ofertadas no semestre e resolve o problema de satisfação de restrições (Branch-and-Bound) sem choque de horário sob 3 perfis de decisão (desbloqueio curricular, grade compacta e carga equilibrada)."""
 
         async def _impl() -> tuple[dict[str, object], bool, int, bool, list[str]]:
+            ano_p, per_p = proximo_periodo_letivo(date.today())
+            ano_u = ano if ano is not None else ano_p
+            per_u = periodo if periodo is not None else per_p
+            avisos_g: list[str] = []
+            if ano is None or periodo is None:
+                avisos_g.append(
+                    f"Período não informado: assumido o próximo período letivo ({ano_u}.{per_u}). "
+                    "Informe `ano` e `periodo` para outro semestre."
+                )
             prog, _, _ = await ctx.sigaa.obter_progresso_curso(atualizar=atualizar)
             ofertas, _, _ = await ctx.sigaa.obter_ofertas_turmas(
-                ano=ano, periodo=periodo, atualizar=atualizar
+                ano=ano_u, periodo=per_u, atualizar=atualizar
             )
             res = simular_grades_otimizadas(
                 prog.componentes,
@@ -105,7 +120,7 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
                 codigos_desejados=codigos_desejados,
                 codigos_ignorar=codigos_ignorar,
             )
-            return res, False, 0, False, []
+            return res, False, 0, False, avisos_g
 
         return await ctx.executar_com_envelope(
             nome="grade",
@@ -130,7 +145,7 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
                 termo_topico=termo_topico,
                 atualizar=atualizar,
             )
-            return res, False, 0, True, []
+            return res, False, 0, True, _avisos(res)
 
         return await ctx.executar_com_envelope(
             nome="estudo",
@@ -200,23 +215,11 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
         async def _impl() -> tuple[dict[str, object], bool, int, bool, list[str]]:
             portal, _, _ = await ctx.sigaa.obter_resumo_portal(atualizar=atualizar)
             lista_diag = []
+            avisos_f: list[str] = []
             for t in portal.turmas:
                 if id_turma and t.id_turma != id_turma:
                     continue
-                faltas_h = 0
-                try:
-                    nt, _, _ = await ctx.sigaa.obter_turma_notas(t.id_turma, atualizar=atualizar)
-                    if nt.faltas is not None:
-                        faltas_h = nt.faltas
-                except ErroUfc:
-                    pass
-                try:
-                    fr, _, _ = await ctx.sigaa.obter_turma_frequencia(
-                        t.id_turma, atualizar=atualizar
-                    )
-                    faltas_h = max(faltas_h, fr.total_faltas_horas)
-                except ErroUfc:
-                    pass
+                faltas_h, avs_t = await ler_faltas_turma(ctx.sigaa, t.id_turma, atualizar=atualizar)
                 diag = calcular_faltas_disciplina(
                     id_turma=t.id_turma,
                     codigo=t.codigo,
@@ -224,8 +227,9 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
                     carga_horaria_h=t.carga_horaria_h,
                     faltas_registradas_h=faltas_h,
                 )
+                avisos_f += avs_t + [f"{t.codigo}: {x}" for x in diag.avisos]
                 lista_diag.append(diag.model_dump())
-            return {"disciplinas": lista_diag}, False, 0, False, []
+            return {"disciplinas": lista_diag}, False, 0, False, avisos_f
 
         return await ctx.executar_com_envelope(
             nome="faltas",

@@ -10,13 +10,21 @@ from pathlib import Path
 REGEX_MATRICULA_OU_CPF = re.compile(r"\b\d{6,}\b")
 REGEX_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 REGEX_JSESSIONID = re.compile(r'(?i)JSESSIONID=[^;\s"\']+')
-REGEX_SENHA_PARAM = re.compile(r'(?i)(senha|password|secret|token)\s*[=:]\s*[^&\s"\']+')
+REGEX_CPF_FORMATADO = re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")
+REGEX_COOKIE_CABECALHO = re.compile(r"(?i)\b(set-cookie|cookie)\s*:\s*[^\r\n]*")
+# valor entre aspas (com espaços) ou sem aspas; cobre `senha=x`, `user.senha: "a b"`, `"senha": "a b"`
+REGEX_SENHA_PARAM = re.compile(
+    r"""(?i)(["']?(?:user\.)?(?:senha|password|secret|token)["']?)\s*[=:]\s*"""
+    r"""(?:"[^"]*"|'[^']*'|[^&\s"']+)"""
+)
 
 
 def sanitizar_mensagem_log(texto: str) -> str:
     """Remove matrículas, CPFs, e-mails, JSESSIONID e senhas de qualquer string de log."""
-    limpo = REGEX_JSESSIONID.sub("JSESSIONID=[SESSAO]", texto)
+    limpo = REGEX_COOKIE_CABECALHO.sub(lambda m: f"{m.group(1)}: [OCULTO]", texto)
+    limpo = REGEX_JSESSIONID.sub("JSESSIONID=[SESSAO]", limpo)
     limpo = REGEX_SENHA_PARAM.sub(r"\1=[OCULTO]", limpo)
+    limpo = REGEX_CPF_FORMATADO.sub("[CPF]", limpo)
     limpo = REGEX_EMAIL.sub("[EMAIL]", limpo)
     limpo = REGEX_MATRICULA_OU_CPF.sub("[NUM]", limpo)
     return limpo

@@ -21,7 +21,9 @@ def parse_pendencias_ou_biblioteca(html: str, *, assinatura_esperada: str) -> Re
         )
 
     secoes: list[SecaoPendencias] = []
-    for table in conteudo.find_all("table"):
+    # Só tabelas de topo viram seções: as aninhadas (detalhe de uma linha) já entram no texto da
+    # linha que as contém, o que evita repetir o mesmo conteúdo em várias linhas.
+    for table in (t for t in conteudo.find_all("table") if t.find_parent("table") is None):
         ths_texto = " ".join(th.get_text(" ", strip=True) for th in table.find_all("th")).lower()
         if "matrícula:" in ths_texto or "discente:" in ths_texto or "cpf:" in ths_texto:
             continue
@@ -33,21 +35,27 @@ def parse_pendencias_ou_biblioteca(html: str, *, assinatura_esperada: str) -> Re
             else assinatura_esperada.upper()
         )
         itens: list[dict[str, str]] = []
-        for tr in table.find_all("tr"):
+        for tr in (r for r in table.find_all("tr") if r.find_parent("table") is table):
             if "subFormulario" in (tr.get("class") or []):
                 continue
             celulas = [
                 " ".join(c.get_text(" ", strip=True).split())
-                for c in tr.find_all(["th", "td"])
+                for c in tr.find_all(["th", "td"], recursive=False)
                 if "subFormulario" not in (c.get("class") or [])
             ]
             celulas = [c for c in celulas if c]
-            if len(celulas) == 2:
+            if not celulas:
+                continue
+            if tr.find("table") is not None:
+                itens.append({"linha": " ".join(tr.get_text(" ", strip=True).split())})
+            elif len(celulas) == 2:
                 if any(p in celulas[0].lower() for p in ("matrícula", "discente", "cpf")):
                     continue
                 itens.append({"campo": celulas[0].rstrip(":"), "valor": celulas[1]})
             elif len(celulas) > 2:
                 itens.append({"linha": " | ".join(celulas)})
+            else:
+                itens.append({"linha": celulas[0]})
 
         if itens:
             secoes.append(SecaoPendencias(titulo=titulo_sec, itens=itens))
