@@ -8,7 +8,10 @@ com citação verificável de página.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from ufc_mcp.fontes.sigaa.cliente import ClienteSigaa
 from ufc_mcp.nucleo.erros import ErroUfc
@@ -17,6 +20,30 @@ from ufc_mcp.nucleo.modelos_base import BaseModel, Field
 from ufc_mcp.servicos.notas_ufc import DiagnosticoNotasUfc, diagnosticar_notas_ufc
 
 FocoEstudo = Literal["proxima_prova", "revisao_geral", "recuperacao_nota", "topico_especifico"]
+FUSO_FORTALEZA = ZoneInfo("America/Fortaleza")
+
+
+def _parse_data_avaliacao(valor: str) -> date | None:
+    s = valor.strip()
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s[:10])
+    except ValueError:
+        pass
+    try:
+        return datetime.strptime(s[:10], "%d/%m/%Y").date()
+    except ValueError:
+        return None
+
+
+def _hoje_fortaleza(agora: Callable[[], datetime] | None) -> date:
+    if agora is None:
+        return datetime.now(FUSO_FORTALEZA).date()
+    dt = agora()
+    if dt.tzinfo is not None:
+        return dt.astimezone(FUSO_FORTALEZA).date()
+    return dt.date()
 
 
 class TopicoAlinhadoEstudo(BaseModel):
@@ -40,31 +67,47 @@ async def construir_plano_estudo_orientado(
     foco: FocoEstudo = "proxima_prova",
     termo_topico: str | None = None,
     atualizar: bool = False,
+    agora: Callable[[], datetime] | None = None,
 ) -> dict[str, object]:
-    # 1. Diagnóstico regimental de notas (Art. 114 da UFC)
-    notas_t, _, _ = await sigaa.obter_turma_notas(id_turma, atualizar=atualizar)
-    valores_notas = [av.nota for av in notas_t.avaliacoes if av.nota is not None]
-    # Total real = avaliações listadas; sem lista, o diagnóstico presume 3 e avisa.
-    total_unidades = len(notas_t.avaliacoes) if notas_t.avaliacoes else None
     avisos: list[str] = []
-    diag_notas: DiagnosticoNotasUfc = diagnosticar_notas_ufc(
-        valores_notas,
-        total_unidades_previstas=total_unidades,
-        media_parcial_informada=notas_t.media_parcial,
-    )
-    avisos.extend(diag_notas.avisos)
+    nome_turma: str | None = None
+
+    # 1. Diagnóstico regimental de notas (Art. 114 da UFC)
+    diag_notas: DiagnosticoNotasUfc | None = None
+    try:
+        notas_t, _, _ = await sigaa.obter_turma_notas(id_turma, atualizar=atualizar)
+        nome_turma = notas_t.turma
+        valores_notas = [av.nota for av in notas_t.avaliacoes if av.nota is not None]
+        # Total real = avaliações listadas; sem lista, o diagnóstico presume 3 e avisa.
+        total_unidades = len(notas_t.avaliacoes) if notas_t.avaliacoes else None
+        diag_notas = diagnosticar_notas_ufc(
+            valores_notas,
+            total_unidades_previstas=total_unidades,
+            media_parcial_informada=notas_t.media_parcial,
+        )
+        avisos.extend(diag_notas.avisos)
+    except ErroUfc as exc:
+        avisos.append(f"Leitura das notas falhou ({exc.codigo}); diagnóstico de notas indisponível.")
 
     # 2. Horizonte de avaliação e tarefas
     proxima_avaliacao: dict[str, object] | None = None
     try:
         avals_t, _, _ = await sigaa.obter_turma_avaliacoes(id_turma, atualizar=atualizar)
-        if avals_t.avaliacoes:
-            av0 = avals_t.avaliacoes[0]
+        hoje = _hoje_fortaleza(agora)
+        futuras: list[tuple[date, int, object]] = []
+        for idx, av in enumerate(avals_t.avaliacoes):
+            dt_av = _parse_data_avaliacao(av.data)
+            if dt_av is not None and dt_av >= hoje:
+                futuras.append((dt_av, idx, av))
+        if futuras:
+            _, _, escolhida = min(futuras, key=lambda item: (item[0], item[1]))
             proxima_avaliacao = {
-                "data": av0.data,
-                "hora": av0.hora,
-                "descricao": av0.descricao.model_dump(),
+                "data": escolhida.data,  # type: ignore[attr-defined]
+                "hora": escolhida.hora,  # type: ignore[attr-defined]
+                "descricao": escolhida.descricao.model_dump(),  # type: ignore[attr-defined]
             }
+        else:
+            avisos.append("Nenhuma avaliação futura encontrada para esta turma.")
     except ErroUfc as exc:
         avisos.append(f"Leitura das avaliações agendadas falhou ({exc.codigo}); próxima prova indisponível.")
 
@@ -128,9 +171,6 @@ async def construir_plano_estudo_orientado(
             if mesma_data or tem_palavra:
                 associados.append(m_info)
 
-        if not associados and todos_materiais:
-            associados = [todos_materiais[0]]
-
         topicos_alinhados.append(
             TopicoAlinhadoEstudo(
                 data_aula=item_cron.data,
@@ -139,37 +179,49 @@ async def construir_plano_estudo_orientado(
             )
         )
 
-    if not topicos_alinhados and plano_t.cronograma_aulas:
-        for item_cron in plano_t.cronograma_aulas:
-            topicos_alinhados.append(
-                TopicoAlinhadoEstudo(
-                    data_aula=item_cron.data,
-                    topico_cronograma=item_cron.topico,
-                    materiais_associados=todos_materiais[:2],
-                )
-            )
-
-    mat_recomendado = (
-        todos_materiais[0]["id_material"] if todos_materiais else "mat_01"
-    )
-    meta_str = (
-        f"atingir nota >= {diag_notas.nota_necessaria_por_unidade_para_media_7:.2f} na próxima avaliação parcial (média 7,0)"
-        if diag_notas.nota_necessaria_por_unidade_para_media_7 is not None
-        else (
-            f"atingir nota >= {diag_notas.nota_minima_avaliacao_final:.2f} na Avaliação Final (Art. 114 UFC)"
-            if diag_notas.nota_minima_avaliacao_final is not None
-            else "consolidar domínio dos tópicos previstos no Plano de Curso"
+    if foco == "topico_especifico" and termo_norm and not topicos_alinhados:
+        avisos.append(
+            f"O tópico pedido ('{termo_topico}') não foi encontrado no cronograma do Plano de Curso."
         )
+
+    turma_final = nome_turma or plano_t.turma or visao_t.turma
+    mat_recomendado: object | None = (
+        topicos_alinhados[0].materiais_associados[0]["id_material"]
+        if (topicos_alinhados and topicos_alinhados[0].materiais_associados)
+        else None
     )
+    if diag_notas is not None and diag_notas.nota_necessaria_por_unidade_para_media_7 is not None:
+        meta_str = (
+            f"atingir nota >= {diag_notas.nota_necessaria_por_unidade_para_media_7:.2f} "
+            "na próxima avaliação parcial (média 7,0)"
+        )
+    elif diag_notas is not None and diag_notas.nota_minima_avaliacao_final is not None:
+        meta_str = (
+            f"atingir nota >= {diag_notas.nota_minima_avaliacao_final:.2f} "
+            "na Avaliação Final (Art. 114 UFC)"
+        )
+    else:
+        meta_str = "consolidar domínio dos tópicos previstos no Plano de Curso"
+
+    if mat_recomendado is not None:
+        passo_1 = (
+            f"Passo 1: Chamar `baixar(id_turma='{id_turma}', id_material='{mat_recomendado}', "
+            "extrair_texto=True, pagina_inicial=1, pagina_final=10)` para ler os slides/exercícios reais do professor."
+        )
+    else:
+        passo_1 = (
+            "Passo 1: Informar ao estudante que a turma não tem material associado ao tema "
+            "e pedir outro material para continuar o estudo."
+        )
 
     roteiro = RoteiroPedagogicoAtivo(
         foco_selecionado=foco,
         objetivo_aprendizagem=(
-            f"Estudo dirigido na disciplina {notas_t.turma} para {meta_str}, "
+            f"Estudo dirigido na disciplina {turma_final} para {meta_str}, "
             "ancorado nos slides/listas do docente e nas referências do Plano de Curso."
         ),
         passos_execucao_agente=[
-            f"Passo 1: Chamar `baixar(id_turma='{id_turma}', id_material='{mat_recomendado}', extrair_texto=True, pagina_inicial=1, pagina_final=10)` para ler os slides/exercícios reais do professor.",
+            passo_1,
             "Passo 2: Explicar a estrutura conceitual seguindo a sequência e a notação adotada pelo docente no cronograma do Plano de Curso.",
             "Passo 3: Formular de 3 a 5 questões graduadas de recuperação ativa (active recall) e exercícios práticos extraídos do material lido.",
             "Passo 4: Avaliar e corrigir as respostas do estudante apontando a fundamentação exata com `[Material: <titulo_material>, Página <N>]` e a bibliografia oficial.",
@@ -183,8 +235,8 @@ async def construir_plano_estudo_orientado(
 
     return {
         "id_turma": id_turma,
-        "turma": notas_t.turma,
-        "diagnostico_notas_ufc": diag_notas.model_dump(),
+        "turma": turma_final,
+        "diagnostico_notas_ufc": diag_notas.model_dump() if diag_notas is not None else None,
         "proxima_avaliacao": proxima_avaliacao,
         "tarefas_pendentes": tarefas_pendentes,
         "metodologia_docente": plano_t.metodologia.model_dump(),

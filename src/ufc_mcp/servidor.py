@@ -375,7 +375,7 @@ class AplicacaoServidorUfcMcp:
             if id_t:
                 abertura = f"Organize minha sessão de estudo ativo na turma {id_t}{foco}. "
                 passo1 = f"1. Chame `estudo(id_turma='{id_t}'"
-                passo1 += f", termo_topico='{top}')`; " if top else ")`; "
+                passo1 += f", foco='topico_especifico', termo_topico='{top}')`; " if top else ")`; "
             else:
                 abertura = f"Organize minha sessão de estudo ativo{foco}. "
                 passo1 = (
@@ -383,7 +383,7 @@ class AplicacaoServidorUfcMcp:
                     "as turmas e pergunte/identifique o `id_turma`; depois chame "
                     "`estudo(id_turma=<id_turma>"
                 )
-                passo1 += f", termo_topico='{top}')`; " if top else ")`; "
+                passo1 += f", foco='topico_especifico', termo_topico='{top}')`; " if top else ")`; "
             texto = (
                 abertura
                 + passo1
@@ -398,7 +398,7 @@ class AplicacaoServidorUfcMcp:
             n_txt = args.get("n_questoes") or ""
             n_q = int(n_txt) if n_txt.isdigit() and 1 <= int(n_txt) <= 10 else 5
             foco = f" sobre {top}" if top else ""
-            termo = f", termo_topico='{top}'" if top else ""
+            termo = f", foco='topico_especifico', termo_topico='{top}'" if top else ""
             if id_t:
                 abertura = f"Aplique um simulado de {n_q} questões{foco} na turma {id_t}. "
                 passo1 = f"1. Chame `estudo(id_turma='{id_t}'{termo})`; "

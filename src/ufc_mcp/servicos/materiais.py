@@ -7,7 +7,9 @@ limite de 25 MB e higienização em `TextoExterno` com paginação (`pagina_inic
 from __future__ import annotations
 
 import io
+import os
 import re
+import tempfile
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -68,6 +70,8 @@ class ResultadoMaterialBaixado(BaseModel):
     content_type: str
     total_paginas_pdf: int | None = None
     paginas_lidas: list[int] = Field(default_factory=list)
+    paginas_sem_texto: list[int] = Field(default_factory=list)
+    texto_cortado: bool = False
     previa_texto: TextoExterno | None = None
 
 
@@ -107,7 +111,7 @@ def extrair_texto_paginado(
     pagina_inicial: int = 1,
     pagina_final: int = 10,
     max_chars: int = 12000,
-) -> tuple[TextoExterno | None, int | None, list[int]]:
+) -> tuple[TextoExterno | None, int | None, list[int], list[int]]:
     """Extrai texto paginado de arquivos PDF, TXT ou MD e aplica `higiene.externo`."""
     if pagina_inicial < 1 or pagina_final < pagina_inicial or (pagina_final - pagina_inicial) > 14:
         raise ErroUfc(
@@ -122,39 +126,64 @@ def extrair_texto_paginado(
         dados_bytes = caminho_arquivo.read_bytes()
         reader = PdfReader(io.BytesIO(dados_bytes))
         total_pags = len(reader.pages)
-        ini_idx = min(pagina_inicial, max(1, total_pags)) - 1
+        if pagina_inicial > total_pags:
+            raise ErroUfc(
+                CodigoErro.PARAMETRO_INVALIDO,
+                f"pagina_inicial ({pagina_inicial}) excede o total de páginas do PDF ({total_pags}).",
+                detalhes={"pagina_inicial": pagina_inicial, "total_paginas": total_pags},
+            )
+        ini_idx = pagina_inicial - 1
         fim_idx = min(pagina_final, total_pags)
         partes: list[str] = []
         pags_lidas: list[int] = []
+        pags_sem_texto: list[int] = []
         for idx in range(ini_idx, fim_idx):
             num_pag = idx + 1
-            txt_p = reader.pages[idx].extract_text() or ""
-            partes.append(f"[Página {num_pag}]\n{txt_p.strip()}")
+            txt_p = (reader.pages[idx].extract_text() or "").strip()
+            partes.append(f"[Página {num_pag}]\n{txt_p}")
             pags_lidas.append(num_pag)
+            if not txt_p:
+                pags_sem_texto.append(num_pag)
         bruto = "\n\n".join(partes)
-        return externo(bruto, origem=f"material:{nome}", max_chars=max_chars), total_pags, pags_lidas
+        return (
+            externo(bruto, origem=f"material:{nome}", max_chars=max_chars),
+            total_pags,
+            pags_lidas,
+            pags_sem_texto,
+        )
 
     if sufixo in (".txt", ".md", ".csv", ".py"):
         texto_arq = caminho_arquivo.read_text(encoding="utf-8", errors="replace")
         linhas = texto_arq.splitlines()
         linhas_por_pag = 50
         total_pags = max(1, (len(linhas) + linhas_por_pag - 1) // linhas_por_pag)
-        ini_pag = min(pagina_inicial, total_pags)
+        if pagina_inicial > total_pags:
+            raise ErroUfc(
+                CodigoErro.PARAMETRO_INVALIDO,
+                f"pagina_inicial ({pagina_inicial}) excede o total de páginas do arquivo ({total_pags}).",
+                detalhes={"pagina_inicial": pagina_inicial, "total_paginas": total_pags},
+            )
+        ini_pag = pagina_inicial
         fim_pag = min(pagina_final, total_pags)
         partes_txt: list[str] = []
         pags_lidas_txt: list[int] = []
+        pags_sem_texto_txt: list[int] = []
         for p in range(ini_pag, fim_pag + 1):
             fatia = linhas[(p - 1) * linhas_por_pag : p * linhas_por_pag]
-            partes_txt.append(f"[Página {p}]\n" + "\n".join(fatia))
+            conteudo_p = "\n".join(fatia)
+            partes_txt.append(f"[Página {p}]\n" + conteudo_p)
             pags_lidas_txt.append(p)
+            if not conteudo_p.strip():
+                pags_sem_texto_txt.append(p)
         bruto_txt = "\n\n".join(partes_txt)
         return (
             externo(bruto_txt, origem=f"material:{nome}", max_chars=max_chars),
             total_pags,
             pags_lidas_txt,
+            pags_sem_texto_txt,
         )
 
-    return None, None, []
+    return None, None, [], []
 
 
 class ServicoMateriais:
@@ -204,35 +233,57 @@ class ServicoMateriais:
             resp_bin, nome_sugerido = await self.sessao.baixar_material_turma(id_turma, id_material)
             ct_detectado = resp_bin.content_type
             nome_seguro = sanitizar_nome_arquivo(nome_sugerido, ct_detectado)
-            caminho_final = (pasta_turma / nome_seguro).resolve()
+            nome_arquivo = f"{id_material}_{nome_seguro}"
+            caminho_final = (pasta_turma / nome_arquivo).resolve()
             if not caminho_final.is_relative_to(pasta_turma):
                 raise ErroUfc(
                     CodigoErro.ACAO_BLOQUEADA,
                     "Tentativa de Path Traversal bloqueada ao salvar material.",
                 )
-            caminho_final.write_bytes(resp_bin.conteudo)
+            tmp_caminho: Path | None = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    dir=pasta_turma,
+                    prefix=f".{id_material}_",
+                    suffix=".tmp",
+                    delete=False,
+                ) as tmp_arq:
+                    tmp_caminho = Path(tmp_arq.name)
+                    tmp_arq.write(resp_bin.conteudo)
+                os.replace(tmp_caminho, caminho_final)
+            except BaseException:
+                if tmp_caminho is not None and tmp_caminho.exists():
+                    tmp_caminho.unlink(missing_ok=True)
+                raise
             self._indice_local[chave_local] = caminho_final
             caminho_local = caminho_final
 
         previa: TextoExterno | None = None
         total_pags: int | None = None
         pags_lidas: list[int] = []
+        pags_sem_texto: list[int] = []
 
         if extrair_texto:
-            previa, total_pags, pags_lidas = extrair_texto_paginado(
+            previa, total_pags, pags_lidas, pags_sem_texto = extrair_texto_paginado(
                 caminho_local,
                 pagina_inicial=pagina_inicial,
                 pagina_final=pagina_final,
             )
 
+        caminho_relativo = caminho_local.resolve().relative_to(
+            self.config.pasta_documentos.resolve()
+        ).as_posix()
+
         return ResultadoMaterialBaixado(
             id_turma=id_turma,
             id_material=id_material,
             titulo_material=caminho_local.name,
-            arquivo_local=str(caminho_local),
+            arquivo_local=caminho_relativo,
             tamanho_bytes=caminho_local.stat().st_size,
             content_type=ct_detectado,
             total_paginas_pdf=total_pags,
             paginas_lidas=pags_lidas,
+            paginas_sem_texto=pags_sem_texto,
+            texto_cortado=previa.cortado if previa is not None else False,
             previa_texto=previa,
         )

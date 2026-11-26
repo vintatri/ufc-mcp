@@ -265,9 +265,12 @@ def construir_ferramentas_compostas(ctx: ContextoApp) -> list[DefinicaoFerrament
             caminho = exportar_arquivo_ics(
                 ctx.config.pasta_documentos, portal.turmas, evs, data_referencia=hoje
             )
+            caminho_rel = caminho.resolve().relative_to(
+                ctx.config.pasta_documentos.resolve()
+            ).as_posix()
             return (
                 {
-                    "arquivo_ics": str(caminho),
+                    "arquivo_ics": caminho_rel,
                     "total_turmas": len(portal.turmas),
                     "total_eventos_calendario": len(evs),
                 },
