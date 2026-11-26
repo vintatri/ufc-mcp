@@ -186,10 +186,10 @@ Os dados pessoais são gravados no `config.toml` da pasta de configuração do u
 
 | Chave no `config.toml` | Variável de ambiente | Padrão | Uso |
 |---|---|---|---|
-| `curso` | `UFC_MCP_CURSO` | não definido | Id numérico do seu curso no portal público do SIGAA. Preenchido no primeiro uso. |
+| `curso` | `UFC_MCP_ID_CURSO_PUBLICO` | não definido | Id numérico do seu curso no portal público do SIGAA. Preenchido no primeiro uso. |
 | `restaurante` | `UFC_MCP_RESTAURANTE` | não definido | Unidade do RU usada quando você não informa outra, pelo nome (ex.: `Fortaleza`, `Pici`, `Quixadá`). Preenchido no primeiro uso. |
-| `identificadores` | `UFC_MCP_IDENTIFICADORES` | `false` | Se `true`, mostra nome e matrícula nas respostas. |
-| `perfil` | `UFC_MCP_PERFIL` | `completo` | `completo` (36 ferramentas) ou `essencial` (16). |
+| `identificadores` | `UFC_MCP_INCLUIR_IDENTIFICADORES` | `false` | Se `true`, mostra nome e matrícula nas respostas. |
+| `perfil` | `UFC_MCP_PERFIL_FERRAMENTAS` | `completo` | `completo` (36 ferramentas) ou `essencial` (16). |
 | `desativadas`, `grupos_desativados` | — | `[]` | Desliga ferramentas ou grupos específicos. |
 | `nivel_log` | `UFC_MCP_NIVEL_LOG` | `INFO` | Nível de log. O log vai para stderr. |
 
