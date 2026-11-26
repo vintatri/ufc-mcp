@@ -261,7 +261,7 @@ def parse_turma_avaliacoes(html: str, *, id_turma: str) -> AvaliacoesTurma:
     conteudo = soup.select_one("#conteudo, #ava-conteudo") or soup
 
     texto_pagina = soup.get_text(" ", strip=True)
-    if re.search(r"Nenhuma avalia[cç][aã]o cadastrada", texto_pagina, re.I) and not re.search(
+    if re.search(r"Nenhuma avalia[cç][aã]o cadastrada|Nenhum item foi encontrado", texto_pagina, re.I) and not re.search(
         r"Datas de Avalia[cç][oõ]es\s+\d", texto_pagina, re.I
     ):
         return AvaliacoesTurma(id_turma=id_turma, turma=nome_turma, avaliacoes=[])
@@ -294,7 +294,7 @@ def parse_turma_tarefas(html: str, *, id_turma: str) -> TarefasTurma:
     nome_turma = _extrair_nome_turma(soup, id_turma)
     conteudo = soup.select_one("#conteudo, #ava-conteudo") or soup
 
-    if re.search(r"Nenhuma tarefa cadastrada", conteudo.get_text(" ", strip=True), re.I):
+    if re.search(r"Nenhuma tarefa cadastrada|Nenhum item foi encontrado", conteudo.get_text(" ", strip=True), re.I):
         return TarefasTurma(id_turma=id_turma, turma=nome_turma, tarefas=[])
 
     tabela = conteudo.select_one("table.listagem, table.tabelaRelatorio") or achar_tag(conteudo, "table")
@@ -379,7 +379,7 @@ def parse_turma_noticias(html: str, *, id_turma: str) -> NoticiasTurma:
     nome_turma = _extrair_nome_turma(soup, id_turma)
     conteudo = soup.select_one("#conteudo, #ava-conteudo") or soup
 
-    if re.search(r"Nenhuma not[ií]cia cadastrada", conteudo.get_text(" ", strip=True), re.I):
+    if re.search(r"Nenhuma not[ií]cia cadastrada|Nenhum item foi encontrado", conteudo.get_text(" ", strip=True), re.I):
         return NoticiasTurma(id_turma=id_turma, turma=nome_turma, noticias=[])
 
     # Layout real: `table.listing` com colunas "Título | Data | Notificação" (só a lista; o corpo

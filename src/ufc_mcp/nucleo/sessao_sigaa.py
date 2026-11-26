@@ -105,6 +105,7 @@ class SessaoSigaa:
         self.ultimo_html_portal: str | None = None
         self.ultima_pagina_principal_turma: dict[str, str] = {}
         self.ultima_view_ativa: tuple[str, str | None] = ("", None)
+        self._url_apos_intersticial: str | None = None
 
     @property
     def arquivo_login_suspenso(self) -> Path:
@@ -157,7 +158,7 @@ class SessaoSigaa:
 
     async def _resolver_intersticiais(self, html: str) -> str:
         """Trata vínculo múltiplo (prioriza Graduação Ativo) e questionários puláveis."""
-        for _ in range(3):
+        for _ in range(4):
             tipo = identificar_pagina(html)
             if tipo == TipoPagina.SELECAO_VINCULO:
                 soup = BeautifulSoup(html, "lxml")
@@ -180,6 +181,25 @@ class SessaoSigaa:
                 html = resp.texto
                 continue
 
+            if tipo == TipoPagina.AVISO_LOGON:
+                soup = BeautifulSoup(html, "lxml")
+                form = soup.find("form", action=re.compile(r"telaAvisoLogon\.jsf"))
+                campos: dict[str, str] = {}
+                for inp in form.find_all("input"):  # type: ignore[union-attr]
+                    nome = inp.get("name")
+                    if not nome:
+                        continue
+                    tipo_inp = str(inp.get("type") or "text").lower()
+                    # Envia só os campos ocultos e o botão "Continuar", como o navegador.
+                    if tipo_inp == "submit" and "continuar" not in str(inp.get("value", "")).lower():
+                        continue
+                    campos[str(nome)] = str(inp.get("value") or "")
+                url_aviso = urljoin(URL_BASE_SIGAA, str(form.get("action")))  # type: ignore[union-attr]
+                resp = await self.http.post_form(url_aviso, campos, cookies=self.cookies)
+                html = resp.texto
+                self._url_apos_intersticial = resp.url_final
+                continue
+
             if tipo == TipoPagina.QUESTIONARIO_INTERSTICIAL:
                 soup = BeautifulSoup(html, "lxml")
                 link_pular = achar_tag(
@@ -196,10 +216,11 @@ class SessaoSigaa:
 
     async def _ir_ao_portal(self, resp_login: RespostaHttp) -> str:
         """Percorre o caminho de um navegador após o login: tela de progresso -> Módulos e Portais -> Portal do Discente."""
+        self._url_apos_intersticial = None
         html = await self._resolver_intersticiais(resp_login.texto)
         if identificar_pagina(html) == TipoPagina.PORTAL_DISCENTE:
             return html
-        referer = resp_login.url_final
+        referer = self._url_apos_intersticial or resp_login.url_final
         if urlparse(referer).path.split(";")[0].endswith("/progresso.jsf"):
             # A tela de progresso redireciona por JavaScript para a página de módulos.
             resp_mod = await self.http.get(URL_PAGINA_INICIAL, cookies=self.cookies, referer=referer)
@@ -342,12 +363,15 @@ class SessaoSigaa:
             html_portal = await self.abrir_portal(forcar_atualizacao=(tentativa > 0))
             form_menu = extrair_formulario(html_portal, "menu:form_menu_discente")
             prefixo = "menu_form_menu_discente_j_id_jsp_1_menu"
+            expressao_na_pagina = expressao_bean
             for m in REGEX_JSCOOK_ACTION.finditer(html_portal):
-                if m.group(2) == expressao_bean:
+                # Alguns itens (ex.: Histórico Escolar) vêm com espaços: `#{ bean.metodo }`.
+                if m.group(2).strip() == expressao_bean:
                     prefixo = m.group(1)
+                    expressao_na_pagina = m.group(2)
                     break
             dados = dict(form_menu.campos)
-            dados["jscook_action"] = f"{prefixo}:A]#{{{expressao_bean}}}"
+            dados["jscook_action"] = f"{prefixo}:A]#{{{expressao_na_pagina}}}"
             url_post = urljoin(URL_BASE_SIGAA, form_menu.action)
             resp = await self.http.post_form(url_post, dados, cookies=self.cookies)
             tipo = identificar_pagina(resp.texto)

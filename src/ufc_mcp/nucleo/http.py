@@ -8,7 +8,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 import httpx
 
@@ -92,7 +92,18 @@ def validar_e_normalizar_url(url: str) -> tuple[str, str]:
             detalhes={"host": host},
         )
     # força https na porta padrão e descarta credenciais/porta embutidas no netloc
-    parsed = parsed._replace(scheme="https", netloc=host)
+    # O SIGAA pode redirecionar para URLs com acento/espaço (ex.: nome do arquivo). Essa URL
+    # vira o cabeçalho Referer, que só aceita ASCII: percent-encoda o que não for ASCII
+    # sem tocar em '%' já existente nem em delimitadores ('/', ';', '?', '=', '&').
+    seguro = "%/:@!$&'()*+,;=?~-._[]#"
+    parsed = parsed._replace(
+        scheme="https",
+        netloc=host,
+        path=quote(parsed.path, safe=seguro),
+        params=quote(parsed.params, safe=seguro),
+        query=quote(parsed.query, safe=seguro),
+        fragment=quote(parsed.fragment, safe=seguro),
+    )
     return urlunparse(parsed), host
 
 
@@ -110,10 +121,13 @@ async def _ler_com_limite(resp: httpx.Response, max_bytes: int) -> httpx.Respons
         buf.extend(pedaco)
         if len(buf) > max_bytes:
             raise excedeu
+    # Usa os bytes crus dos cabeçalhos: valores com acento (ex.: Content-Disposition com
+    # "Adsorção") não cabem em ASCII e `multi_items()` (str) quebraria a remontagem.
     cabecalhos = [
         (k, v)
-        for k, v in resp.headers.multi_items()
-        if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+        for k, v in resp.headers.raw
+        if k.decode("latin-1").lower()
+        not in ("content-encoding", "content-length", "transfer-encoding")
     ]
     return httpx.Response(
         resp.status_code, headers=cabecalhos, content=bytes(buf), request=resp.request

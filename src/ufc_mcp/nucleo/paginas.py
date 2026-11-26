@@ -76,6 +76,7 @@ class TipoPagina(StrEnum):
     SESSAO_EXPIRADA = "SESSAO_EXPIRADA"
     SELECAO_VINCULO = "SELECAO_VINCULO"
     QUESTIONARIO_INTERSTICIAL = "QUESTIONARIO_INTERSTICIAL"
+    AVISO_LOGON = "AVISO_LOGON"
     PORTAL_DISCENTE = "PORTAL_DISCENTE"
     TURMA_VIRTUAL = "TURMA_VIRTUAL"
     TELA_INTERNA = "TELA_INTERNA"
@@ -141,6 +142,14 @@ def identificar_pagina(html: str) -> TipoPagina:
 
     if soup.find("a", string=re.compile(r"Responder depois|Continuar para o Portal", re.I)):
         return TipoPagina.QUESTIONARIO_INTERSTICIAL
+
+    # Aviso exibido logo após o login (ex.: Avaliação Institucional): formulário JSF
+    # com botão "Continuar >>" que precisa ser enviado antes de abrir o portal.
+    form_aviso = soup.find("form", action=re.compile(r"telaAvisoLogon\.jsf"))
+    if isinstance(form_aviso, Tag) and form_aviso.find(
+        "input", attrs={"type": "submit", "value": re.compile(r"Continuar", re.I)}
+    ):
+        return TipoPagina.AVISO_LOGON
 
     if (
         soup.find(id="turmas-portal") is not None
