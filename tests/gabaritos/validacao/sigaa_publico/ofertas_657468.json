@@ -1,0 +1,129 @@
+[
+  {
+    "codigo_componente": "EQ0071",
+    "nome_componente": "EQ0071 - FENÔMENOS DE TRANSPORTE II",
+    "codigo_turma": "01",
+    "docente": "Prof. DOCENTE EXEMPLO",
+    "horario_bruto": "24M12",
+    "horarios": [
+      {
+        "dia": "SEG",
+        "inicio": "07:00",
+        "fim": "09:00"
+      },
+      {
+        "dia": "QUA",
+        "inicio": "07:00",
+        "fim": "09:00"
+      }
+    ],
+    "local": "CT - Bloco 710 - Sala A",
+    "capacidade_vagas": 40,
+    "carga_horaria_h": 64
+  },
+  {
+    "codigo_componente": "EQ0072",
+    "nome_componente": "EQ0072 - LABORATÓRIO DE TRANSPORTE",
+    "codigo_turma": "01",
+    "docente": "Prof. DOCENTE EXEMPLO",
+    "horario_bruto": "24M34",
+    "horarios": [
+      {
+        "dia": "SEG",
+        "inicio": "09:00",
+        "fim": "11:00"
+      },
+      {
+        "dia": "QUA",
+        "inicio": "09:00",
+        "fim": "11:00"
+      }
+    ],
+    "local": "CT - Bloco 709 - Lab 01",
+    "capacidade_vagas": 20,
+    "carga_horaria_h": 32
+  },
+  {
+    "codigo_componente": "EQ0072",
+    "nome_componente": "EQ0072 - LABORATÓRIO DE TRANSPORTE",
+    "codigo_turma": "02",
+    "docente": "Prof. DOCENTE EXEMPLO",
+    "horario_bruto": "35T12",
+    "horarios": [
+      {
+        "dia": "TER",
+        "inicio": "13:00",
+        "fim": "15:00"
+      },
+      {
+        "dia": "QUI",
+        "inicio": "13:00",
+        "fim": "15:00"
+      }
+    ],
+    "local": "CT - Bloco 709 - Lab 01",
+    "capacidade_vagas": 20,
+    "carga_horaria_h": 32
+  },
+  {
+    "codigo_componente": "EQ0085",
+    "nome_componente": "EQ0085 - CONTROLE DE PROCESSOS",
+    "codigo_turma": "01",
+    "docente": "Prof. DOCENTE EXEMPLO",
+    "horario_bruto": "24M12",
+    "horarios": [
+      {
+        "dia": "SEG",
+        "inicio": "07:00",
+        "fim": "09:00"
+      },
+      {
+        "dia": "QUA",
+        "inicio": "07:00",
+        "fim": "09:00"
+      }
+    ],
+    "local": "CT - Bloco 710 - Sala C",
+    "capacidade_vagas": 35,
+    "carga_horaria_h": 64
+  },
+  {
+    "codigo_componente": "EQ0085",
+    "nome_componente": "EQ0085 - CONTROLE DE PROCESSOS",
+    "codigo_turma": "02",
+    "docente": "Prof. DOCENTE EXEMPLO",
+    "horario_bruto": "6M1234",
+    "horarios": [
+      {
+        "dia": "SEX",
+        "inicio": "07:00",
+        "fim": "11:00"
+      }
+    ],
+    "local": "CT - Bloco 710 - Sala C",
+    "capacidade_vagas": 35,
+    "carga_horaria_h": 64
+  },
+  {
+    "codigo_componente": "EQ0099",
+    "nome_componente": "EQ0099 - TÓPICOS ESPECIAIS EM SIMULAÇÃO",
+    "codigo_turma": "01",
+    "docente": "Prof. DOCENTE EXEMPLO",
+    "horario_bruto": "35M12",
+    "horarios": [
+      {
+        "dia": "TER",
+        "inicio": "07:00",
+        "fim": "09:00"
+      },
+      {
+        "dia": "QUI",
+        "inicio": "07:00",
+        "fim": "09:00"
+      }
+    ],
+    "local": "CT - Bloco 710 - Lab Info",
+    "capacidade_vagas": 30,
+    "carga_horaria_h": 64
+  }
+]

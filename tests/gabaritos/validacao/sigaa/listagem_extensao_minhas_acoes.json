@@ -1,0 +1,24 @@
+{
+  "tipo": "extensao_minhas_acoes",
+  "vazio": false,
+  "mensagem": null,
+  "tabelas": [
+    {
+      "titulo": "Registros de extensao_minhas_acoes",
+      "cabecalhos": [
+        "Código/Ano",
+        "Descrição",
+        "Situação",
+        "Ações"
+      ],
+      "linhas": [
+        [
+          "2026.2",
+          "Registro acadêmico regular (extensao_minhas_acoes)",
+          "DEFERIDO / ATIVO"
+        ]
+      ],
+      "truncada": false
+    }
+  ]
+}

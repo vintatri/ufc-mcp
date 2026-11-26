@@ -1,0 +1,18 @@
+{
+  "id_curso": 657469,
+  "curso": "CIÊNCIA DA COMPUTAÇÃO (Código 657469)",
+  "periodos": [
+    {
+      "semestre": "2026.2",
+      "inicio": "2026-08-03",
+      "fim": "2026-08-07",
+      "evento": "Matrícula Curricular Online"
+    },
+    {
+      "semestre": "2026.2",
+      "inicio": "2026-08-10",
+      "fim": "2026-12-11",
+      "evento": "Período Letivo 2026.2"
+    }
+  ]
+}

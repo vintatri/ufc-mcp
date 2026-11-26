@@ -1,0 +1,24 @@
+{
+  "tipo": "matricula_solicitacoes",
+  "vazio": false,
+  "mensagem": null,
+  "tabelas": [
+    {
+      "titulo": "Registros de matricula_solicitacoes",
+      "cabecalhos": [
+        "Código/Ano",
+        "Descrição",
+        "Situação",
+        "Ações"
+      ],
+      "linhas": [
+        [
+          "2026.2",
+          "Registro acadêmico regular (matricula_solicitacoes)",
+          "DEFERIDO / ATIVO"
+        ]
+      ],
+      "truncada": false
+    }
+  ]
+}

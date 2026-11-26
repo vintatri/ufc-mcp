@@ -1,0 +1,35 @@
+[
+  {
+    "codigo": "CK0010",
+    "nome": "FUNDAMENTOS DO CURSO I",
+    "carga_horaria_h": 64,
+    "periodo_sugerido": 1,
+    "obrigatoria": true,
+    "pre_requisitos": [],
+    "co_requisitos": []
+  },
+  {
+    "codigo": "CK0042",
+    "nome": "MODELAGEM E FENÔMENOS I",
+    "carga_horaria_h": 64,
+    "periodo_sugerido": 2,
+    "obrigatoria": true,
+    "pre_requisitos": [
+      "CK0010"
+    ],
+    "co_requisitos": []
+  },
+  {
+    "codigo": "CK0071",
+    "nome": "SISTEMAS AVANÇADOS II",
+    "carga_horaria_h": 64,
+    "periodo_sugerido": 3,
+    "obrigatoria": true,
+    "pre_requisitos": [
+      "CK0042"
+    ],
+    "co_requisitos": [
+      "CK0072"
+    ]
+  }
+]

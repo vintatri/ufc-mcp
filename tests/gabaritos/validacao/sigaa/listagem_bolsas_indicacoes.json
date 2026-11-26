@@ -1,0 +1,24 @@
+{
+  "tipo": "bolsas_indicacoes",
+  "vazio": false,
+  "mensagem": null,
+  "tabelas": [
+    {
+      "titulo": "Registros de bolsas_indicacoes",
+      "cabecalhos": [
+        "Código/Ano",
+        "Descrição",
+        "Situação",
+        "Ações"
+      ],
+      "linhas": [
+        [
+          "2026.2",
+          "Registro acadêmico regular (bolsas_indicacoes)",
+          "DEFERIDO / ATIVO"
+        ]
+      ],
+      "truncada": false
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "nome": null,
+  "matricula": null,
+  "curso": "ENGENHARIA QUÍMICA - FORTALEZA",
+  "nivel": "GRADUAÇÃO",
+  "status": "ATIVO",
+  "entrada": "2023.1",
+  "integralizacao": "78%",
+  "turmas": [
+    {
+      "id_turma": "910001",
+      "codigo": "EQ0042",
+      "nome": "FENÔMENOS DE TRANSPORTE I",
+      "local": "CT - Bloco 710 - Sala B",
+      "horario_bruto": "24M12 (SEG 07:00-09:00, QUA 07:00-09:00)",
+      "horarios": [
+        {
+          "dia": "SEG",
+          "inicio": "07:00",
+          "fim": "09:00"
+        },
+        {
+          "dia": "QUA",
+          "inicio": "07:00",
+          "fim": "09:00"
+        }
+      ],
+      "inicio_vigencia": "2026-08-10",
+      "fim_vigencia": "2026-12-11",
+      "carga_horaria_h": 64
+    },
+    {
+      "id_turma": "910002",
+      "codigo": "EQ0055",
+      "nome": "PROCESSOS DE SEPARAÇÃO II",
+      "local": "CT - Bloco 709 - Sala 04",
+      "horario_bruto": "35T34 (TER 15:00-17:00, QUI 15:00-17:00)",
+      "horarios": [
+        {
+          "dia": "TER",
+          "inicio": "15:00",
+          "fim": "17:00"
+        },
+        {
+          "dia": "QUI",
+          "inicio": "15:00",
+          "fim": "17:00"
+        }
+      ],
+      "inicio_vigencia": "2026-08-10",
+      "fim_vigencia": "2026-12-11",
+      "carga_horaria_h": 64
+    },
+    {
+      "id_turma": "910003",
+      "codigo": "EQ0061",
+      "nome": "REATORES QUÍMICOS I",
+      "local": "CT - Bloco 710 - Sala C",
+      "horario_bruto": "6M1234 (SEX 07:00-11:00)",
+      "horarios": [
+        {
+          "dia": "SEX",
+          "inicio": "07:00",
+          "fim": "11:00"
+        }
+      ],
+      "inicio_vigencia": "2026-08-10",
+      "fim_vigencia": "2026-12-11",
+      "carga_horaria_h": 64
+    }
+  ],
+  "noticias_portal": [
+    {
+      "texto_externo": "Matrícula curricular 2026.2 aberta conforme Calendário Universitário da PROGRAD.",
+      "origem": "portal:noticia",
+      "cortado": false
+    }
+  ],
+  "atividades_proximas": [
+    {
+      "data": "2026-11-15",
+      "turma": "EQ0042",
+      "descricao": {
+        "texto_externo": "Entrega da Lista 03 de Balanço de Quantidade de Movimento",
+        "origem": "portal:atividade",
+        "cortado": false
+      }
+    },
+    {
+      "data": "2026-11-20",
+      "turma": "EQ0055",
+      "descricao": {
+        "texto_externo": "Relatório de Simulação de Destilação Multicomponente",
+        "origem": "portal:atividade",
+        "cortado": false
+      }
+    }
+  ]
+}

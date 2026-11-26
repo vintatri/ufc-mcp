@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Feed Oficial PRAE - UFC</title>
+    <link>https://prae.ufc.br</link>
+    <description>Notícias institucionais da Universidade Federal do Ceará</description>
+    <item>
+      <title>Edital PRAE nº 12/2026 - Cronograma Acadêmico e Bolsas</title>
+      <link>https://prae.ufc.br/noticia/edital-12-2026</link>
+      <pubDate>Thu, 12 Nov 2026 10:00:00 -0300</pubDate>
+      <description>Confira os prazos atualizados e orientações para estudantes de graduação da UFC.</description>
+    </item>
+    <item>
+      <title>Comunicado PRAE sobre Atendimento Estudantil no Campus do Pici</title>
+      <link>https://prae.ufc.br/noticia/comunicado-pici</link>
+      <pubDate>Wed, 11 Nov 2026 14:30:00 -0300</pubDate>
+      <description>Informações sobre horários de funcionamento e suporte acadêmico.</description>
+    </item>
+  </channel>
+</rss>

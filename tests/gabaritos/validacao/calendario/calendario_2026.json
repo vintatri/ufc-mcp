@@ -1,0 +1,120 @@
+{
+  "ano": 2026,
+  "eventos": [
+    {
+      "inicio": "2026-08-03",
+      "fim": "2026-08-07",
+      "descricao": "Período de matrícula curricular online para 2026.2",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-08-10",
+      "fim": "2026-08-10",
+      "descricao": "Início do período letivo 2026.2",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-08-15",
+      "fim": "2026-08-15",
+      "descricao": "Feriado Municipal - Nossa Senhora da Assunção (Fortaleza)",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-09-07",
+      "fim": "2026-09-07",
+      "descricao": "Feriado Nacional - Independência do Brasil",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-09-14",
+      "fim": "2026-09-18",
+      "descricao": "Prazo de ajuste e supressão de disciplinas",
+      "marcadores": [
+        "G"
+      ],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-10-12",
+      "fim": "2026-10-12",
+      "descricao": "Feriado Nacional - Nossa Senhora Aparecida",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-10-21",
+      "fim": "2026-10-23",
+      "descricao": "Encontros Universitários da UFC 2026",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-10-28",
+      "fim": "2026-10-28",
+      "descricao": "Ponto Facultativo - Dia do Servidor Público",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-11-02",
+      "fim": "2026-11-02",
+      "descricao": "Feriado Nacional - Finados",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-11-13",
+      "fim": "2026-11-13",
+      "descricao": "Prazo final para trancamento parcial de matrícula em 2026.2",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-11-15",
+      "fim": "2026-11-15",
+      "descricao": "Feriado Nacional - Proclamação da República",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-11-20",
+      "fim": "2026-11-20",
+      "descricao": "Feriado Nacional - Dia Nacional de Zumbi e da Consciência Negra",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-12-11",
+      "fim": "2026-12-11",
+      "descricao": "Término das aulas regulares do semestre 2026.2",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-12-14",
+      "fim": "2026-12-18",
+      "descricao": "Período de Avaliações Finais (AF) de 2026.2",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": false
+    },
+    {
+      "inicio": "2026-12-25",
+      "fim": "2026-12-25",
+      "descricao": "Feriado Nacional - Natal",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    },
+    {
+      "inicio": "2026-01-01",
+      "fim": "2026-01-01",
+      "descricao": "Feriado Nacional - Confraternização Universal",
+      "marcadores": [],
+      "eh_feriado_ou_recesso": true
+    }
+  ],
+  "nao_interpretados": 0
+}

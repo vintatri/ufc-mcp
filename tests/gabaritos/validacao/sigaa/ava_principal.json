@@ -1,0 +1,51 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "topicos": [
+    {
+      "data": "2026-11-11",
+      "titulo": {
+        "texto_externo": "11/11/2026 - Equação de Navier-Stokes e Escoamento Laminar",
+        "origem": "turma:910001:topico",
+        "cortado": false
+      },
+      "resumo": {
+        "texto_externo": "Dedução diferencial do balanço de quantidade de movimento e perfil parabólico em dutos.",
+        "origem": "turma:910001:topico_resumo",
+        "cortado": false
+      },
+      "materiais": [
+        {
+          "id_material": "mat_01",
+          "titulo": {
+            "texto_externo": "Slides_Navier_Stokes.pdf",
+            "origem": "turma:910001:material",
+            "cortado": false
+          }
+        },
+        {
+          "id_material": "mat_02",
+          "titulo": {
+            "texto_externo": "Lista_Exercicios_03.pdf",
+            "origem": "turma:910001:material",
+            "cortado": false
+          }
+        }
+      ]
+    },
+    {
+      "data": "2026-11-13",
+      "titulo": {
+        "texto_externo": "13/11/2026 - Perda de Carga e Balanço de Energia Mecânica (Bernoulli Estendido)",
+        "origem": "turma:910001:topico",
+        "cortado": false
+      },
+      "resumo": {
+        "texto_externo": "Fator de atrito de Darcy-Weisbach, diagrama de Moody e acessórios de tubulação.",
+        "origem": "turma:910001:topico_resumo",
+        "cortado": false
+      },
+      "materiais": []
+    }
+  ]
+}

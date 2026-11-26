@@ -1,0 +1,24 @@
+{
+  "tipo": "mobilidades",
+  "vazio": false,
+  "mensagem": null,
+  "tabelas": [
+    {
+      "titulo": "Registros de mobilidades",
+      "cabecalhos": [
+        "Código/Ano",
+        "Descrição",
+        "Situação",
+        "Ações"
+      ],
+      "linhas": [
+        [
+          "2026.2",
+          "Registro acadêmico regular (mobilidades)",
+          "DEFERIDO / ATIVO"
+        ]
+      ],
+      "truncada": false
+    }
+  ]
+}

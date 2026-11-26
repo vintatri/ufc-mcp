@@ -1,0 +1,31 @@
+{
+  "titulo_tela": "Situação na Biblioteca",
+  "secoes": [
+    {
+      "titulo": "CURRÍCULO DO CURSO",
+      "itens": [
+        {
+          "campo": "Carga Horária Obrigatória Pendente",
+          "valor": "384 h"
+        },
+        {
+          "campo": "Carga Horária Optativa Pendente",
+          "valor": "128 h"
+        },
+        {
+          "campo": "Atividades Complementares Pendentes",
+          "valor": "32 h"
+        }
+      ]
+    },
+    {
+      "titulo": "BIBLIOTECA",
+      "itens": [
+        {
+          "campo": "Situação de Empréstimos",
+          "valor": "SEM PENDÊNCIAS (0 obras em atraso)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "curso": "ENGENHARIA QUÍMICA",
+  "componentes": [
+    {
+      "id_componente": "101",
+      "codigo": "EQ0010",
+      "nome": "TERMODINÂMICA BÁSICA",
+      "periodo_sugerido": 1,
+      "carga_horaria_h": 64,
+      "obrigatoria": true,
+      "situacao": "cursado",
+      "pre_requisitos": [],
+      "co_requisitos": []
+    },
+    {
+      "id_componente": "102",
+      "codigo": "EQ0042",
+      "nome": "FENÔMENOS DE TRANSPORTE I",
+      "periodo_sugerido": 2,
+      "carga_horaria_h": 64,
+      "obrigatoria": true,
+      "situacao": "cursando",
+      "pre_requisitos": [
+        "EQ0010"
+      ],
+      "co_requisitos": []
+    },
+    {
+      "id_componente": "103",
+      "codigo": "EQ0071",
+      "nome": "FENÔMENOS DE TRANSPORTE II",
+      "periodo_sugerido": 3,
+      "carga_horaria_h": 64,
+      "obrigatoria": true,
+      "situacao": "a_cursar",
+      "pre_requisitos": [
+        "EQ0042"
+      ],
+      "co_requisitos": []
+    },
+    {
+      "id_componente": "104",
+      "codigo": "EQ0072",
+      "nome": "LABORATÓRIO DE TRANSPORTE",
+      "periodo_sugerido": 3,
+      "carga_horaria_h": 32,
+      "obrigatoria": true,
+      "situacao": "a_cursar",
+      "pre_requisitos": [
+        "EQ0010"
+      ],
+      "co_requisitos": [
+        "EQ0071"
+      ]
+    },
+    {
+      "id_componente": "105",
+      "codigo": "EQ0081",
+      "nome": "OPERAÇÕES UNITÁRIAS I",
+      "periodo_sugerido": 4,
+      "carga_horaria_h": 64,
+      "obrigatoria": true,
+      "situacao": "a_cursar",
+      "pre_requisitos": [
+        "EQ0071"
+      ],
+      "co_requisitos": []
+    },
+    {
+      "id_componente": "106",
+      "codigo": "EQ0085",
+      "nome": "CONTROLE DE PROCESSOS",
+      "periodo_sugerido": 4,
+      "carga_horaria_h": 64,
+      "obrigatoria": true,
+      "situacao": "a_cursar",
+      "pre_requisitos": [
+        "EQ0042"
+      ],
+      "co_requisitos": []
+    },
+    {
+      "id_componente": "107",
+      "codigo": "EQ0099",
+      "nome": "TÓPICOS ESPECIAIS EM SIMULAÇÃO",
+      "periodo_sugerido": 5,
+      "carga_horaria_h": 64,
+      "obrigatoria": false,
+      "situacao": "a_cursar",
+      "pre_requisitos": [
+        "EQ0010"
+      ],
+      "co_requisitos": []
+    }
+  ]
+}

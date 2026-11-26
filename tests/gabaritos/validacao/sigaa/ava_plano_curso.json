@@ -1,0 +1,44 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "metodologia": {
+    "texto_externo": "Aulas expositivas integradas à resolução de problemas analíticos e simulações computacionais em Python.",
+    "origem": "plano_curso:metodologia",
+    "cortado": false
+  },
+  "procedimentos_avaliacao": {
+    "texto_externo": "Três avaliações parciais (AP1, AP2, AP3) de igual peso conforme Art. 114 do Regimento Geral da UFC.",
+    "origem": "plano_curso:avaliacao",
+    "cortado": false
+  },
+  "cronograma_aulas": [
+    {
+      "data": "2026-11-11",
+      "topico": {
+        "texto_externo": "Equação de Navier-Stokes e Escoamento Laminar em Dutos",
+        "origem": "plano_curso:910001:cronograma",
+        "cortado": false
+      }
+    },
+    {
+      "data": "2026-11-13",
+      "topico": {
+        "texto_externo": "Aula em laboratório no Bloco 709 - Perda de Carga e Balanço de Energia Mecânica",
+        "origem": "plano_curso:910001:cronograma",
+        "cortado": false
+      }
+    }
+  ],
+  "referencias": [
+    {
+      "texto_externo": "BIRD, R. B.; STEWART, W. E.; LIGHTFOOT, E. N. Fenômenos de Transporte. 2. ed. LTC, 2004.",
+      "origem": "plano_curso:910001:referencias",
+      "cortado": false
+    },
+    {
+      "texto_externo": "FOX, R. W.; MCDONALD, A. T.; PRITCHARD, P. J. Introdução à Mecânica dos Fluidos. 8. ed. LTC, 2014.",
+      "origem": "plano_curso:910001:referencias",
+      "cortado": false
+    }
+  ]
+}

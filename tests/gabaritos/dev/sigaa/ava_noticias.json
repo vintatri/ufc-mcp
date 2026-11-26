@@ -1,0 +1,32 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "noticias": [
+    {
+      "titulo": {
+        "texto_externo": "Mudança de sala na aula de 13/11",
+        "origem": "turma:910001:noticia_titulo",
+        "cortado": false
+      },
+      "corpo": {
+        "texto_externo": "Pessoal, nossa aula de 13/11/2026 ocorrerá excepcionalmente no Laboratório de Termofluidodinâmica (Bloco 709 - Lab 02).",
+        "origem": "turma:910001:noticia_corpo",
+        "cortado": false
+      },
+      "publicada_em": "2026-11-12"
+    },
+    {
+      "titulo": {
+        "texto_externo": "Boas-vindas ao semestre 2026.2",
+        "origem": "turma:910001:noticia_titulo",
+        "cortado": false
+      },
+      "corpo": {
+        "texto_externo": "Na primeira semana não haverá aula prática no laboratório.",
+        "origem": "turma:910001:noticia_corpo",
+        "cortado": false
+      },
+      "publicada_em": "2026-08-15"
+    }
+  ]
+}

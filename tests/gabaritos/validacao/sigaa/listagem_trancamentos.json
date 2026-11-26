@@ -1,0 +1,6 @@
+{
+  "tipo": "trancamentos",
+  "vazio": true,
+  "mensagem": "Não foram encontrados registros de trancamentos para o discente.",
+  "tabelas": []
+}

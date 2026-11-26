@@ -1,0 +1,14 @@
+{
+  "titulo": "Agenda de Turmas do Discente",
+  "itens": [
+    {
+      "colunas": "SEG/QUA 07:00-09:00 | EQ0042 - FENÔMENOS DE TRANSPORTE I | CT - Bloco 710 - Sala B"
+    },
+    {
+      "colunas": "TER/QUI 15:00-17:00 | EQ0055 - PROCESSOS DE SEPARAÇÃO II | CT - Bloco 709 - Sala 04"
+    },
+    {
+      "colunas": "SEX 07:00-11:00 | EQ0061 - REATORES QUÍMICOS I | CT - Bloco 710 - Sala C"
+    }
+  ]
+}

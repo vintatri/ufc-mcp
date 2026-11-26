@@ -1,0 +1,24 @@
+{
+  "tipo": "solicitacoes_mobilidade",
+  "vazio": false,
+  "mensagem": null,
+  "tabelas": [
+    {
+      "titulo": "Registros de solicitacoes_mobilidade",
+      "cabecalhos": [
+        "Código/Ano",
+        "Descrição",
+        "Situação",
+        "Ações"
+      ],
+      "linhas": [
+        [
+          "2026.2",
+          "Registro acadêmico regular (solicitacoes_mobilidade)",
+          "DEFERIDO / ATIVO"
+        ]
+      ],
+      "truncada": false
+    }
+  ]
+}

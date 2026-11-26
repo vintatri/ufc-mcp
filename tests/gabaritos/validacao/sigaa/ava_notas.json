@@ -1,0 +1,21 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "avaliacoes": [
+    {
+      "nome": "AP1",
+      "nota": 6.6
+    },
+    {
+      "nome": "AP2",
+      "nota": 5.2
+    },
+    {
+      "nome": "AP3",
+      "nota": null
+    }
+  ],
+  "media_parcial": 5.9,
+  "faltas": 12,
+  "situacao": "CURSANDO"
+}

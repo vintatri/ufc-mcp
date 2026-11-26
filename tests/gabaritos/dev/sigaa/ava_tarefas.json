@@ -1,0 +1,36 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "tarefas": [
+    {
+      "titulo": {
+        "texto_externo": "Lista 03 - Navier-Stokes e Bernoulli",
+        "origem": "turma:910001:tarefa_titulo",
+        "cortado": false
+      },
+      "descricao": {
+        "texto_externo": "Resolver os problemas 1 a 8 com balanço diferencial e perda de carga.",
+        "origem": "turma:910001:tarefa_desc",
+        "cortado": false
+      },
+      "inicio_entrega": "2026-11-01T08:00:00",
+      "fim_entrega": "2026-11-14T23:59:00",
+      "enviada": false
+    },
+    {
+      "titulo": {
+        "texto_externo": "Lista 02 - Estática dos Fluidos",
+        "origem": "turma:910001:tarefa_titulo",
+        "cortado": false
+      },
+      "descricao": {
+        "texto_externo": "Manometria e forças em superfícies submersas.",
+        "origem": "turma:910001:tarefa_desc",
+        "cortado": false
+      },
+      "inicio_entrega": "2026-10-10T08:00:00",
+      "fim_entrega": "2026-10-25T23:59:00",
+      "enviada": true
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "avaliacoes": [
+    {
+      "data": "2026-11-14",
+      "hora": "08:00",
+      "descricao": {
+        "texto_externo": "Avaliação Parcial 2 (AP2) - Equações Diferenciais do Movimento e Perda de Carga",
+        "origem": "turma:910001:avaliacao",
+        "cortado": false
+      }
+    },
+    {
+      "data": "2026-12-04",
+      "hora": "08:00",
+      "descricao": {
+        "texto_externo": "Avaliação Parcial 3 (AP3) - Camada Limite e Escoamento Externo",
+        "origem": "turma:910001:avaliacao",
+        "cortado": false
+      }
+    }
+  ]
+}

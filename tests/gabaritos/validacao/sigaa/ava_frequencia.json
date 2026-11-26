@@ -1,0 +1,22 @@
+{
+  "id_turma": "910001",
+  "turma": "EQ0042 - FENÔMENOS DE TRANSPORTE I",
+  "total_faltas_horas": 12,
+  "registros": [
+    {
+      "data": "2026-11-04",
+      "situacao": "Presente",
+      "faltas_no_dia": 0
+    },
+    {
+      "data": "2026-11-06",
+      "situacao": "2 Faltas",
+      "faltas_no_dia": 2
+    },
+    {
+      "data": "2026-11-11",
+      "situacao": "Presente",
+      "faltas_no_dia": 0
+    }
+  ]
+}

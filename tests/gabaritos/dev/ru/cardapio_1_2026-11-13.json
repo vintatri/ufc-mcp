@@ -1,0 +1,77 @@
+{
+  "data": "2026-11-13",
+  "restaurante_id": 1,
+  "restaurante_nome": "Restaurante Universitário de Fortaleza",
+  "tem_cardapio": true,
+  "refeicoes": [
+    {
+      "tipo": "desjejum",
+      "pratos": [
+        {
+          "categoria": "bebidas",
+          "descricao": "Café",
+          "contem_gluten": false,
+          "contem_lactose": false
+        },
+        {
+          "categoria": "bebidas",
+          "descricao": "Leite integral",
+          "contem_gluten": false,
+          "contem_lactose": true
+        },
+        {
+          "categoria": "pães",
+          "descricao": "Pão francês",
+          "contem_gluten": true,
+          "contem_lactose": false
+        }
+      ]
+    },
+    {
+      "tipo": "almoco",
+      "pratos": [
+        {
+          "categoria": "principal",
+          "descricao": "Frango assado ao molho de ervas",
+          "contem_gluten": false,
+          "contem_lactose": false
+        },
+        {
+          "categoria": "vegetariano",
+          "descricao": "Quibe de soja ao forno",
+          "contem_gluten": true,
+          "contem_lactose": false
+        },
+        {
+          "categoria": "acompanhamento",
+          "descricao": "Arroz branco",
+          "contem_gluten": false,
+          "contem_lactose": false
+        },
+        {
+          "categoria": "acompanhamento",
+          "descricao": "Feijão carioca",
+          "contem_gluten": false,
+          "contem_lactose": false
+        }
+      ]
+    },
+    {
+      "tipo": "jantar",
+      "pratos": [
+        {
+          "categoria": "principal",
+          "descricao": "Picadinho bovino com legumes",
+          "contem_gluten": false,
+          "contem_lactose": false
+        },
+        {
+          "categoria": "vegetariano",
+          "descricao": "Lentilha temperada",
+          "contem_gluten": false,
+          "contem_lactose": false
+        }
+      ]
+    }
+  ]
+}

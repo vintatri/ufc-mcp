@@ -1,0 +1,32 @@
+[
+  {
+    "fonte": "ufc",
+    "titulo": {
+      "texto_externo": "Edital UFC nº 12/2026 - Cronograma Acadêmico e Bolsas",
+      "origem": "rss:ufc:titulo",
+      "cortado": false
+    },
+    "link": "https://ufc.ufc.br/noticia/edital-12-2026",
+    "publicada_em": "Thu, 12 Nov 2026 10:00:00 -0300",
+    "resumo": {
+      "texto_externo": "Confira os prazos atualizados e orientações para estudantes de graduação da UFC.",
+      "origem": "rss:ufc:resumo",
+      "cortado": false
+    }
+  },
+  {
+    "fonte": "ufc",
+    "titulo": {
+      "texto_externo": "Comunicado UFC sobre Atendimento Estudantil no Campus do Pici",
+      "origem": "rss:ufc:titulo",
+      "cortado": false
+    },
+    "link": "https://ufc.ufc.br/noticia/comunicado-pici",
+    "publicada_em": "Wed, 11 Nov 2026 14:30:00 -0300",
+    "resumo": {
+      "texto_externo": "Informações sobre horários de funcionamento e suporte acadêmico.",
+      "origem": "rss:ufc:resumo",
+      "cortado": false
+    }
+  }
+]
